@@ -1,0 +1,5 @@
+raid-file-transformer:
+  transformerId: "raid-file-transformer"
+  useSharedStorage: ${RAID_FILE_TRANSFORMER_USE_SHARED_STORAGE:false}
+  configuration-fields:
+  user-configuration-fields:
