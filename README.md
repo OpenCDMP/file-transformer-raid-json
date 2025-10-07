@@ -1,13 +1,15 @@
 # File Transformer RAiD JSON for OpenCDMP
 
-**file-transformer-raid-json** is an implementation of the `file-transformer-base` package designed to handle both the **import** and **export** of JSON files based on the **[Research Activity Identifier (RAiD) Metadata Schema](https://metadata.raid.org/en/latest/)**. This microservice is built using **Spring Boot** and can be easily integrated with the OpenCDMP platform as an import/export option for RAiD-compliant JSON files.
+**file-transformer-raid-json** is an implementation of the [file-transformer-base](https://github.com/OpenCDMP/file-transformer-base) package designed to handle both the **import** and **export** of JSON files based on the **[Research Activity Identifier (RAiD) Metadata Schema](https://metadata.raid.org/en/latest/)**. This microservice is built using **Spring Boot** and can be easily integrated with the OpenCDMP platform as an import/export option for RAiD-compliant JSON files.
 
+---
 ## Overview
 
 It ensures that the data is structured and exchanged in a standardized JSON format that complies with the RAiD recommendations.
 
 - **Exports**: Supported for RAiD-compliant JSON format.
 - **Imports**: Supported for RAiD-compliant JSON format.
+
 
 ## Features
 
@@ -16,6 +18,12 @@ It ensures that the data is structured and exchanged in a standardized JSON form
 - **Spring Boot Microservice**: Built as a Spring Boot microservice for seamless integration with OpenCDMP.
 - **Standards-Based**: Fully compliant with the **Research Activity Identifier Metadata Standard**.
 
+**Supported operations:**
+- ✅ Export plans to RDA JSON
+- ✅ Import plans from RDA JSON
+- ❌ Description import/export (not supported)
+
+
 ## Key Endpoints
 
 This service implements the following endpoints as per `FileTransformerController`:
@@ -23,20 +31,11 @@ This service implements the following endpoints as per `FileTransformerControlle
 ### Export Endpoints
 
 - **POST `/export/plan`**: Export a plan to RAiD-compliant JSON.
-- **POST `/export/description`**: Export a description to RAiD-compliant JSON.
 
 ```bash
 POST /export/plan
 {
     "planModel": { ... },
-    "format": "json"
-}
-```
-
-```bash
-POST /export/description
-{
-    "descriptionModel": { ... },
     "format": "json"
 }
 ```
@@ -44,19 +43,11 @@ POST /export/description
 ### Import Endpoints
 
 - **POST `/import/plan`**: Import a plan from RAiD-compliant JSON.
-- **POST `/import/description`**: Import a description from RAiD-compliant JSON.
 
 ```bash
 POST /import/plan
 {
     "planImportModel": { ... }
-}
-```
-
-```bash
-POST /import/description
-{
-    "descriptionImportModel": { ... }
 }
 ```
 
@@ -64,33 +55,33 @@ POST /import/description
 
 - **GET `/formats`**: Returns supported formats for import/export.
 
-## Example
+---
 
-To export a plan into RAiD-compliant JSON format:
+## Integration with OpenCDMP
 
-```bash
-POST /export/plan
-{
-    "planModel": { ... },
-    "format": "json"
-}
-```
+To integrate this service with your OpenCDMP deployment, configure the file transformer plugin in the OpenCDMP admin interface.
 
-To import a plan from RAiD-compliant JSON format:
+For detailed integration instructions, see see the [File Transformers RAiD configuration](https://opencdmp.github.io/getting-started/configuration/backend/file-transformers/#raid-file-transformer) and the [OpenCDMP File Transformers Service Authentication](https://opencdmp.github.io/getting-started/configuration/backend/#file-transformer-service-authentication).
 
-```bash
-POST /import/plan
-{
-    "planImportModel": { ... }
-}
-```
+---
+
+## See Also
+
+- **File Transformers Overview**: https://opencdmp.github.io/optional-services/file-transformers
+- **Developer Plugin Guide**: https://opencdmp.github.io/developers/plugins/file-transformers
+
+---
 
 ## License
 
 This repository is licensed under the [EUPL 1.2 License](LICENSE).
 
-## Contact
+### Contact
 
-For questions or support regarding this implementation, please contact:
+For questions, support, or feedback:
 
 - **Email**: opencdmp at cite.gr
+- **GitHub Issues**: https://github.com/OpenCDMP/file-transformer-raid-json/issues
+---
+
+*This service is part of the OpenCDMP ecosystem. For general OpenCDMP documentation, visit [opencdmp.github.io](https://opencdmp.github.io).*
