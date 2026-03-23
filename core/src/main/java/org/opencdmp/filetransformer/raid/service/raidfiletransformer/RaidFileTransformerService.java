@@ -1,6 +1,5 @@
 package org.opencdmp.filetransformer.raid.service.raidfiletransformer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import gr.cite.tools.exception.MyApplicationException;
 import gr.cite.tools.logging.LoggerService;
 import org.opencdmp.commonmodels.enums.*;
@@ -33,6 +32,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -1258,7 +1258,7 @@ public class RaidFileTransformerService implements FileTransformerClient {
             model.setProperties(buildPlanPropertiesModel(planImportModel.getBlueprintModel(), raid));
             if (planImportModel.getBlueprintModel() != null) model.setPlanBlueprint(planImportModel.getBlueprintModel());
 
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException(e);
         }
 
@@ -1479,7 +1479,7 @@ public class RaidFileTransformerService implements FileTransformerClient {
             if (raid == null) throw new MyApplicationException("RaidModel is missing");
 
             preprocessingPlanModel.setLabel(fileEnvelopeModel.getFilename());
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new RuntimeException(e);
         }
 

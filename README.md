@@ -1,6 +1,6 @@
 # File Transformer RAiD JSON for OpenCDMP
 
-**file-transformer-raid-json** is an implementation of the [file-transformer-base](https://github.com/OpenCDMP/file-transformer-base) package designed to handle both the **import** and **export** of JSON files based on the **[Research Activity Identifier (RAiD) Metadata Schema](https://metadata.raid.org/en/latest/)**. This microservice is built using **Spring Boot** and can be easily integrated with the OpenCDMP platform as an import/export option for RAiD-compliant JSON files.
+**file-transformer-raid-json** is an implementation of the [file-transformer-base](https://github.com/OpenCDMP/file-transformer-base) package designed to handle both the **import** and **export** of JSON files based on the **[Research Activity Identifier (RAiD) Metadata Schema](https://metadata.raid.org/en/v1.6.3/)**. This microservice is built using **Spring Boot** and can be easily integrated with the OpenCDMP platform as an import/export option for RAiD-compliant JSON files.
 
 ---
 ## Overview
@@ -17,6 +17,7 @@ It ensures that the data is structured and exchanged in a standardized JSON form
 - **JSON Import**: Import RAiD-compliant JSON files into OpenCDMP as plans and descriptions.
 - **Spring Boot Microservice**: Built as a Spring Boot microservice for seamless integration with OpenCDMP.
 - **Standards-Based**: Fully compliant with the **Research Activity Identifier Metadata Standard**.
+- **Supported RAiD version:** 1.6 - 1.6.3
 
 **Supported operations:**
 - ✅ Export plans to RDA JSON
