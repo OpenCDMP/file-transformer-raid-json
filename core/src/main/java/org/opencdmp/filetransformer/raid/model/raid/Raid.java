@@ -1,5 +1,6 @@
 package org.opencdmp.filetransformer.raid.model.raid;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -44,7 +45,8 @@ public class Raid implements Serializable {
     @JsonProperty("relatedRaids")
     private List<RelatedRaid> relatedRaids;
 
-    @JsonProperty("Access")
+    @JsonProperty("access")
+    @JsonAlias("Access")
     private Access access;
 
 

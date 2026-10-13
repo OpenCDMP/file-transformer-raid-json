@@ -10,8 +10,8 @@ import java.util.Map;
 public enum RelatedObjectSchemaUri {
 
 	Arks("https://arks.org"),
-	DOI("http://doi.org"),
-	NonDOI("http://hdl.handle.net"),
+	DOI("https://doi.org"),
+	NonDOI("https://hdl.handle.net"),
 	ISBN("https://www.isbn-international.org"),
 	RRID("https://scicrunch.org/resolver"),
 	Other("https://archive.org");
@@ -23,6 +23,9 @@ public enum RelatedObjectSchemaUri {
 		for (RelatedObjectSchemaUri c: values()) {
 			CONSTANTS.put(c.value, c);
 		}
+		// answers saved and files exported before the switch to https
+		CONSTANTS.put("http://doi.org", DOI);
+		CONSTANTS.put("http://hdl.handle.net", NonDOI);
 	}
 
 	RelatedObjectSchemaUri(String value) {

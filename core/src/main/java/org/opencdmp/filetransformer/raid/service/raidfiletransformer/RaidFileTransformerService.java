@@ -5,23 +5,24 @@ import gr.cite.tools.logging.LoggerService;
 import org.opencdmp.commonmodels.enums.*;
 import org.opencdmp.commonmodels.models.*;
 import org.opencdmp.commonmodels.models.description.*;
-import org.opencdmp.commonmodels.models.descriptiotemplate.FieldModel;
-import org.opencdmp.commonmodels.models.descriptiotemplate.FieldSetModel;
-import org.opencdmp.commonmodels.models.descriptiotemplate.fielddata.RadioBoxDataModel;
-import org.opencdmp.commonmodels.models.descriptiotemplate.fielddata.SelectDataModel;
-import org.opencdmp.commonmodels.models.plan.PlanBlueprintValueModel;
 import org.opencdmp.commonmodels.models.plan.PlanModel;
 import org.opencdmp.commonmodels.models.plan.PlanPropertiesModel;
-import org.opencdmp.commonmodels.models.planblueprint.ExtraFieldModel;
 import org.opencdmp.commonmodels.models.planblueprint.PlanBlueprintModel;
-import org.opencdmp.commonmodels.models.planblueprint.SectionModel;
-import org.opencdmp.commonmodels.models.planreference.PlanReferenceModel;
+import org.opencdmp.commonmodels.models.planblueprintdescriptiontemplatefields.FieldModel;
+import org.opencdmp.commonmodels.models.planblueprintdescriptiontemplatefields.FieldSetModel;
+import org.opencdmp.commonmodels.models.planblueprintdescriptiontemplatefields.fielddata.RadioBoxDataModel;
+import org.opencdmp.commonmodels.models.planblueprintdescriptiontemplatefields.fielddata.ReferenceTypeDataModel;
+import org.opencdmp.commonmodels.models.planblueprintdescriptiontemplatefields.fielddata.SelectDataModel;
+import org.opencdmp.commonmodels.models.plandescriptionfields.ExternalIdentifierModel;
+import org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel;
+import org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetModel;
 import org.opencdmp.commonmodels.models.reference.ReferenceModel;
 import org.opencdmp.filetransformer.raid.enums.*;
 import org.opencdmp.filetransformer.raid.model.raid.*;
 import org.opencdmp.filetransformer.raid.model.raid.Date;
 import org.opencdmp.filetransformer.raid.model.raid.Language;
 import org.opencdmp.filetransformer.raid.service.descriptiontemplatesearcher.TemplateFieldSearcherService;
+import org.opencdmp.filetransformer.raid.service.planblueprintsearcher.PlanBlueprintFieldSearcherService;
 import org.opencdmp.filetransformerbase.interfaces.FileTransformerClient;
 import org.opencdmp.filetransformerbase.interfaces.FileTransformerConfiguration;
 import org.opencdmp.filetransformer.raid.service.json.JsonHandlingService;
@@ -34,11 +35,13 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Stream;
 
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
@@ -48,75 +51,77 @@ public class RaidFileTransformerService implements FileTransformerClient {
     private final FileStorageService storageService;
     private final JsonHandlingService jsonHandlingService;
     private final RaidFileTransformerServiceConfiguration configuration;
+    private final PlanBlueprintFieldSearcherService blueprintFieldSearcherService;
     private final TemplateFieldSearcherService templateFieldSearcherService;
     
     private final static List<PluginEntityType> FILE_TRANSFORMER_ENTITY_TYPES = List.of(PluginEntityType.Plan);
 
-    private static final String SEMANTIC_IDENTIFIER_ID = "raid.identifier.id";
-    private static final String SEMANTIC_IDENTIFIER_SCHEMA_URI = "raid.identifier.schemaUri";
-    private static final String SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_ID = "raid.identifier.registrationAgency.id";
-    private static final String SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_SCHEMA_URI = "raid.identifier.registrationAgency.schemaUri";
-    private static final String SEMANTIC_IDENTIFIER_OWNER_ID = "raid.identifier.owner.id";
-    private static final String SEMANTIC_IDENTIFIER_OWNER_SCHEMA_URI = "raid.identifier.owner.schemaUri";
-    private static final String SEMANTIC_IDENTIFIER_OWNER_SERVICE_POINT = "raid.identifier.owner.servicePoint";
-    private static final String SEMANTIC_IDENTIFIER_LICENSE = "raid.identifier.license";
-    private static final String SEMANTIC_IDENTIFIER_VERSION = "raid.identifier.version";
-    private static final String SEMANTIC_DATE_START_DATE = "raid.date.startDate";
-    private static final String SEMANTIC_DATE_END_DATE = "raid.date.endDate";
-    private static final String SEMANTIC_TITLE_TEXT = "raid.title.text";
-    private static final String SEMANTIC_TITLE_TYPE_ID = "raid.title.type.id";
-    private static final String SEMANTIC_TITLE_TYPE_SCHEMA_URI = "raid.title.type.schemaUri";
-    private static final String SEMANTIC_TITLE_LANGUAGE_ID = "raid.title.language.id";
-    private static final String SEMANTIC_TITLE_LANGUAGE_SCHEMA_URI = "raid.title.language.schemaUri";
-    private static final String SEMANTIC_TITLE_START_DATE = "raid.title.startDate";
-    private static final String SEMANTIC_TITLE_END_DATE = "raid.title.endDate";
-    private static final String SEMANTIC_DESCRIPTION_TEXT = "raid.description.text";
-    private static final String SEMANTIC_DESCRIPTION_TYPE_ID = "raid.description.type.id";
-    private static final String SEMANTIC_DESCRIPTION_TYPE_SCHEMA_URI = "raid.description.type.schemaUri";
-    private static final String SEMANTIC_DESCRIPTION_LANGUAGE_ID = "raid.description.language.id";
-    private static final String SEMANTIC_DESCRIPTION_LANGUAGE_SCHEMA_URI = "raid.description.language.schemaUri";
-    private static final String SEMANTIC_CONTRIBUTOR_ID = "raid.contributor.id";
-    private static final String SEMANTIC_CONTRIBUTOR_SCHEMA_URI = "raid.contributor.schemaUri";
-    private static final String SEMANTIC_CONTRIBUTOR_POSITION_ID = "raid.contributor.position.id";
-    private static final String SEMANTIC_CONTRIBUTOR_POSITION_SCHEMA_URI = "raid.contributor.position.schemaUri";
-    private static final String SEMANTIC_CONTRIBUTOR_POSITION_START_DATE = "raid.contributor.position.startDate";
-    private static final String SEMANTIC_CONTRIBUTOR_POSITION_END_DATE = "raid.contributor.position.endDate";
-    private static final String SEMANTIC_CONTRIBUTOR_LEADER = "raid.contributor.leader";
-    private static final String SEMANTIC_CONTRIBUTOR_CONTACT = "raid.contributor.contact";
-    private static final String SEMANTIC_CONTRIBUTOR_ROLE_ID = "raid.contributor.role.id";
-    private static final String SEMANTIC_CONTRIBUTOR_ROLE_SCHEMA_URI = "raid.contributor.role.schemaUri";
-    private static final String SEMANTIC_ORGANISATION_ID = "raid.organisation.id";
-    private static final String SEMANTIC_ORGANISATION_SCHEMA_URI = "raid.organisation.schemaUri";
-    private static final String SEMANTIC_ORGANISATION_ROLE_ID = "raid.organisation.role.id";
-    private static final String SEMANTIC_ORGANISATION_ROLE_SCHEMA_URI = "raid.organisation.role.schemaUri";
-    private static final String SEMANTIC_ORGANISATION_ROLE_START_DATE = "raid.organisation.role.startDate";
-    private static final String SEMANTIC_ORGANISATION_ROLE_END_DATE = "raid.organisation.role.endDate";
-    private static final String SEMANTIC_RELATED_OBJECT_ID = "raid.relatedObject.id";
-    private static final String SEMANTIC_RELATED_OBJECT_SCHEMA_URI = "raid.relatedObject.schemaUri";
-    private static final String SEMANTIC_RELATED_OBJECT_TYPE_ID = "raid.relatedObject.type.id";
-    private static final String SEMANTIC_RELATED_OBJECT_TYPE_SCHEMA_URI = "raid.relatedObject.type.schemaUri";
-    private static final String SEMANTIC_RELATED_OBJECT_CATEGORY_ID = "raid.relatedObject.category.id";
-    private static final String SEMANTIC_RELATED_OBJECT_CATEGORY_SCHEMA_URI = "raid.relatedObject.category.schemaUri";
-    private static final String SEMANTIC_ALTERNATE_IDENTIFIER_ID = "raid.alternateIdentifier.id";
-    private static final String SEMANTIC_ALTERNATE_IDENTIFIER_TYPE = "raid.alternateIdentifier.type";
-    private static final String SEMANTIC_ALTERNATE_URL_URL = "raid.alternateUrl.url";
-    private static final String SEMANTIC_RELATED_RAID_ID = "raid.relatedRaid.id";
-    private static final String SEMANTIC_RELATED_RAID_TYPE_ID = "raid.relatedRaid.type.id";
-    private static final String SEMANTIC_RELATED_RAID_TYPE_SCHEMA_URI = "raid.relatedRaid.type.schemaUri";
-    private static final String SEMANTIC_ACCESS_TYPE_ID = "raid.access.type.id";
-    private static final String SEMANTIC_ACCESS_TYPE_SCHEMA_URI = "raid.access.type.schemaUri";
-    private static final String SEMANTIC_ACCESS_EMBARGO_EXPIRY = "raid.access.embargoExpiry";
-    private static final String SEMANTIC_ACCESS_STATEMENT_TEXT = "raid.access.statement.text";
-    private static final String SEMANTIC_ACCESS_STATEMENT_LANGUAGE_ID = "raid.access.statement.language.id";
-    private static final String SEMANTIC_ACCESS_STATEMENT_LANGUAGE_SCHEMA_URI = "raid.access.statement.language.schemaUri";
+    static final String SEMANTIC_IDENTIFIER_ID = "raid.identifier.id";
+    static final String SEMANTIC_IDENTIFIER_SCHEMA_URI = "raid.identifier.schemaUri";
+    static final String SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_ID = "raid.identifier.registrationAgency.id";
+    static final String SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_SCHEMA_URI = "raid.identifier.registrationAgency.schemaUri";
+    static final String SEMANTIC_IDENTIFIER_OWNER_ID = "raid.identifier.owner.id";
+    static final String SEMANTIC_IDENTIFIER_OWNER_SCHEMA_URI = "raid.identifier.owner.schemaUri";
+    static final String SEMANTIC_IDENTIFIER_OWNER_SERVICE_POINT = "raid.identifier.owner.servicePoint";
+    static final String SEMANTIC_IDENTIFIER_LICENSE = "raid.identifier.license";
+    static final String SEMANTIC_IDENTIFIER_VERSION = "raid.identifier.version";
+    static final String SEMANTIC_DATE_START_DATE = "raid.date.startDate";
+    static final String SEMANTIC_DATE_END_DATE = "raid.date.endDate";
+    static final String SEMANTIC_TITLE_TEXT = "raid.title.text";
+    static final String SEMANTIC_TITLE_TYPE_ID = "raid.title.type.id";
+    static final String SEMANTIC_TITLE_TYPE_SCHEMA_URI = "raid.title.type.schemaUri";
+    static final String SEMANTIC_TITLE_LANGUAGE_ID = "raid.title.language.id";
+    static final String SEMANTIC_TITLE_LANGUAGE_SCHEMA_URI = "raid.title.language.schemaUri";
+    static final String SEMANTIC_TITLE_START_DATE = "raid.title.startDate";
+    static final String SEMANTIC_TITLE_END_DATE = "raid.title.endDate";
+    static final String SEMANTIC_DESCRIPTION_TEXT = "raid.description.text";
+    static final String SEMANTIC_DESCRIPTION_TYPE_ID = "raid.description.type.id";
+    static final String SEMANTIC_DESCRIPTION_TYPE_SCHEMA_URI = "raid.description.type.schemaUri";
+    static final String SEMANTIC_DESCRIPTION_LANGUAGE_ID = "raid.description.language.id";
+    static final String SEMANTIC_DESCRIPTION_LANGUAGE_SCHEMA_URI = "raid.description.language.schemaUri";
+    static final String SEMANTIC_CONTRIBUTOR_ID = "raid.contributor.id";
+    static final String SEMANTIC_CONTRIBUTOR_SCHEMA_URI = "raid.contributor.schemaUri";
+    static final String SEMANTIC_CONTRIBUTOR_POSITION_ID = "raid.contributor.position.id";
+    static final String SEMANTIC_CONTRIBUTOR_POSITION_SCHEMA_URI = "raid.contributor.position.schemaUri";
+    static final String SEMANTIC_CONTRIBUTOR_POSITION_START_DATE = "raid.contributor.position.startDate";
+    static final String SEMANTIC_CONTRIBUTOR_POSITION_END_DATE = "raid.contributor.position.endDate";
+    static final String SEMANTIC_CONTRIBUTOR_LEADER = "raid.contributor.leader";
+    static final String SEMANTIC_CONTRIBUTOR_CONTACT = "raid.contributor.contact";
+    static final String SEMANTIC_CONTRIBUTOR_ROLE_ID = "raid.contributor.role.id";
+    static final String SEMANTIC_CONTRIBUTOR_ROLE_SCHEMA_URI = "raid.contributor.role.schemaUri";
+    static final String SEMANTIC_ORGANISATION_ID = "raid.organisation.id";
+    static final String SEMANTIC_ORGANISATION_SCHEMA_URI = "raid.organisation.schemaUri";
+    static final String SEMANTIC_ORGANISATION_ROLE_ID = "raid.organisation.role.id";
+    static final String SEMANTIC_ORGANISATION_ROLE_SCHEMA_URI = "raid.organisation.role.schemaUri";
+    static final String SEMANTIC_ORGANISATION_ROLE_START_DATE = "raid.organisation.role.startDate";
+    static final String SEMANTIC_ORGANISATION_ROLE_END_DATE = "raid.organisation.role.endDate";
+    static final String SEMANTIC_RELATED_OBJECT_ID = "raid.relatedObject.id";
+    static final String SEMANTIC_RELATED_OBJECT_SCHEMA_URI = "raid.relatedObject.schemaUri";
+    static final String SEMANTIC_RELATED_OBJECT_TYPE_ID = "raid.relatedObject.type.id";
+    static final String SEMANTIC_RELATED_OBJECT_TYPE_SCHEMA_URI = "raid.relatedObject.type.schemaUri";
+    static final String SEMANTIC_RELATED_OBJECT_CATEGORY_ID = "raid.relatedObject.category.id";
+    static final String SEMANTIC_RELATED_OBJECT_CATEGORY_SCHEMA_URI = "raid.relatedObject.category.schemaUri";
+    static final String SEMANTIC_ALTERNATE_IDENTIFIER_ID = "raid.alternateIdentifier.id";
+    static final String SEMANTIC_ALTERNATE_IDENTIFIER_TYPE = "raid.alternateIdentifier.type";
+    static final String SEMANTIC_ALTERNATE_URL_URL = "raid.alternateUrl.url";
+    static final String SEMANTIC_RELATED_RAID_ID = "raid.relatedRaid.id";
+    static final String SEMANTIC_RELATED_RAID_TYPE_ID = "raid.relatedRaid.type.id";
+    static final String SEMANTIC_RELATED_RAID_TYPE_SCHEMA_URI = "raid.relatedRaid.type.schemaUri";
+    static final String SEMANTIC_ACCESS_TYPE_ID = "raid.access.type.id";
+    static final String SEMANTIC_ACCESS_TYPE_SCHEMA_URI = "raid.access.type.schemaUri";
+    static final String SEMANTIC_ACCESS_EMBARGO_EXPIRY = "raid.access.embargoExpiry";
+    static final String SEMANTIC_ACCESS_STATEMENT_TEXT = "raid.access.statement.text";
+    static final String SEMANTIC_ACCESS_STATEMENT_LANGUAGE_ID = "raid.access.statement.language.id";
+    static final String SEMANTIC_ACCESS_STATEMENT_LANGUAGE_SCHEMA_URI = "raid.access.statement.language.schemaUri";
 
 
     @Autowired
-    public RaidFileTransformerService(FileStorageService storageService, JsonHandlingService jsonHandlingService, RaidFileTransformerServiceConfiguration configuration, TemplateFieldSearcherService templateFieldSearcherService) {
+    public RaidFileTransformerService(FileStorageService storageService, JsonHandlingService jsonHandlingService, RaidFileTransformerServiceConfiguration configuration, PlanBlueprintFieldSearcherService blueprintFieldSearcherService, TemplateFieldSearcherService templateFieldSearcherService) {
         this.storageService = storageService;
 	    this.configuration = configuration;
 	    this.jsonHandlingService = jsonHandlingService;
-	    this.templateFieldSearcherService = templateFieldSearcherService;
+        this.blueprintFieldSearcherService = blueprintFieldSearcherService;
+        this.templateFieldSearcherService = templateFieldSearcherService;
     }
     @Override
     public FileEnvelopeModel exportPlan(PlanModel planFileTransformerModel, String variant)  {
@@ -131,8 +136,13 @@ public class RaidFileTransformerService implements FileTransformerClient {
         } else {
             wordFile.setFile(bytes);
         }
-        wordFile.setFilename(planFileTransformerModel.getLabel() + ".json");
+        wordFile.setFilename(this.safeFileName(planFileTransformerModel.getLabel(), "plan") + ".json");
         return wordFile;
+    }
+
+    private String safeFileName(String name, String fallback) {
+        String safe = name == null ? "" : name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").replaceAll("[\\s.]+$", "").strip();
+        return safe.isBlank() ? fallback : safe;
     }
 
     @Override
@@ -162,32 +172,25 @@ public class RaidFileTransformerService implements FileTransformerClient {
         type.setSchemaUri(TitleTypeSchemaUri.SchemaUri);
 
         title.setType(type);
-        title.setStartDate((DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault()).format(plan.getCreatedAt())));
-        if (plan.getFinalizedAt() != null) title.setEndDate(DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault()).format(plan.getFinalizedAt()));
+        title.setStartDate((DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC).format(plan.getCreatedAt())));
+        if (plan.getFinalizedAt() != null) title.setEndDate(DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC).format(plan.getFinalizedAt()));
 
         raid.setTitles(new ArrayList<>());
         raid.getTitles().add(title);
 
+        List<Title> titles = this.buildRaidTitle(plan);
+        if (titles != null && !titles.isEmpty()) raid.getTitles().addAll(titles);
+
+        raid.setDescriptions(this.buildRaidDescriptions(plan));
         raid.setIdentifier(this.buildRaidIdentifier(plan));
         raid.setDate(this.buildRaidDate(plan));
         raid.setAccess(this.buildRaidAccess(plan));
-
-        if (plan.getDescriptions() != null){
-            for (DescriptionModel descriptionModel : plan.getDescriptions()) {
-                List<Title> titles = this.buildRaidTitle(descriptionModel);
-                if (titles != null && !titles.isEmpty()) raid.getTitles().addAll(titles);
-                raid.setDescriptions(this.buildRaidDescriptions(descriptionModel));
-                raid.setContributors(this.buildRaidContributors(descriptionModel));
-                raid.setOrganisations(this.buildRaidOrganisations(descriptionModel));
-                raid.setRelatedObjects(this.buildRaidRelatedObjects(descriptionModel));
-                raid.setAlternateIdentifiers(this.buildRaidAlternateIdentifiers(descriptionModel));
-                raid.setAlternateUrls(this.buildRaidAlternateUrls(descriptionModel));
-                raid.setRelatedRaids(this.buildRaidRelatedRaids(descriptionModel));
-                raid.setDate(this.buildRaidDate(descriptionModel, raid.getDate()));
-                raid.setIdentifier(this.buildRaidIdentifier(descriptionModel, raid.getIdentifier()));
-                raid.setAccess(this.buildRaidAccess(descriptionModel, raid.getAccess()));
-            }
-        }
+        raid.setContributors(this.buildRaidContributors(plan));
+        raid.setOrganisations(this.buildRaidOrganisations(plan));
+        raid.setRelatedObjects(this.buildRaidRelatedObjects(plan));
+        raid.setAlternateIdentifiers(this.buildRaidAlternateIdentifiers(plan));
+        raid.setAlternateUrls(this.buildRaidAlternateUrls(plan));
+        raid.setRelatedRaids(this.buildRaidRelatedRaids(plan));
 
         return raid;
     }
@@ -218,980 +221,958 @@ public class RaidFileTransformerService implements FileTransformerClient {
         }
     }
 
-    public Identifier buildRaidIdentifier(PlanModel model) {
-        if (model == null) throw new MyApplicationException("Plan is missing");
-        Identifier identifier = new Identifier();
-
-        List<org.opencdmp.commonmodels.models.planblueprint.FieldModel> valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_IDENTIFIER_ID);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null) identifier.setId(valueModel.getValue());
-        }
-
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_IDENTIFIER_SCHEMA_URI);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) {
-                try {
-                    identifier.setSchemaUri(IdentifierSchemaUri.fromValue(valueModel.getValue()));
-                } catch (Exception e) {
-                    logger.warn("invalid identifier schema uri value: " + valueModel.getValue());
-                }
+    private List<Title> buildRaidTitle(PlanModel model){
+        List<Title> values = new ArrayList<>();
+        for (FieldSetModel fieldSet : this.blueprintFieldSearcherService.searchFieldSetsBySemantics(model.getPlanBlueprint(), List.of(SEMANTIC_TITLE_TEXT, SEMANTIC_TITLE_TYPE_ID,
+                SEMANTIC_TITLE_TYPE_SCHEMA_URI, SEMANTIC_TITLE_LANGUAGE_ID, SEMANTIC_TITLE_LANGUAGE_SCHEMA_URI, SEMANTIC_TITLE_START_DATE, SEMANTIC_TITLE_END_DATE))) {
+            List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties().getFieldSets());
+            for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+               this.buildTitle(values, fieldSet, propertyDefinitionFieldSetItemModel);
             }
         }
 
-        Identifier.RegistrationAgency agency = new Identifier.RegistrationAgency();
-
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_ID);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) agency.setId(valueModel.getValue());
-        }
-
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_SCHEMA_URI);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) {
-                try {
-                    agency.setSchemaUri(IdentifierRegistrationAgencySchemaUri.fromValue(valueModel.getValue()));
-                } catch (Exception e) {
-                    logger.warn("invalid agency schema uri value: " + valueModel.getValue());
-                }
-            }
-        }
-
-        identifier.setRegistrationAgency(agency);
-
-        Identifier.Owner owner = new Identifier.Owner();
-
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_IDENTIFIER_OWNER_ID);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) owner.setId(valueModel.getValue());
-        }
-
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_IDENTIFIER_OWNER_SCHEMA_URI);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) {
-                try {
-                    owner.setSchemaUri(IdentifierRegistrationAgencySchemaUri.fromValue(valueModel.getValue()));
-                } catch (Exception e) {
-                    logger.warn("invalid owner schema uri value: " + valueModel.getValue());
-                }
-            }
-        }
-
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_IDENTIFIER_OWNER_SERVICE_POINT);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) owner.setServicePoint(valueModel.getValue());
-        }
-
-        identifier.setOwner(owner);
-
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_IDENTIFIER_LICENSE);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) {
-                try {
-                    identifier.setLicense(IdentifierLicense.fromValue(valueModel.getValue()));
-                } catch (Exception e) {
-                    logger.warn("invalid identifier license uri value: " + valueModel.getValue());
-                }
-            }
-        }
-
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_IDENTIFIER_VERSION);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) identifier.setVersion(valueModel.getValue());
-        }
-
-        return identifier;
-    }
-
-    public Date buildRaidDate(PlanModel model) {
-        if (model == null) throw new MyApplicationException("Plan is missing");
-        Date date = new Date();
-
-        date.setStartDate(LocalDateTime.ofInstant(model.getUpdatedAt(), ZoneOffset.UTC).format(DateTimeFormatter.ISO_LOCAL_DATE));
-        date.setEndDate(LocalDateTime.ofInstant(model.getUpdatedAt(), ZoneOffset.UTC).format(DateTimeFormatter.ISO_LOCAL_DATE));
-
-        List<org.opencdmp.commonmodels.models.planblueprint.FieldModel> startDateFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_DATE_START_DATE);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : startDateFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-
-            if (valueModel != null && valueModel.getDateValue() != null) {
-                LocalDateTime ldt = LocalDateTime.ofInstant(valueModel.getDateValue(), ZoneOffset.UTC);
-                date.setStartDate(ldt.format(DateTimeFormatter.ISO_LOCAL_DATE));
-            } else if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) {
-                if (this.isValidDateField(valueModel.getValue())) date.setStartDate(valueModel.getValue());
-            }
-        }
-
-        List<org.opencdmp.commonmodels.models.planblueprint.FieldModel> endDateFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_DATE_END_DATE);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : endDateFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-
-            if (valueModel != null && valueModel.getDateValue() != null) {
-                LocalDateTime ldt = LocalDateTime.ofInstant(valueModel.getDateValue(), ZoneOffset.UTC);
-                date.setEndDate(ldt.format(DateTimeFormatter.ISO_LOCAL_DATE));
-            } else if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) {
-                if (this.isValidDateField(valueModel.getValue())) date.setEndDate(valueModel.getValue());
-            }
-        }
-
-        return date;
-    }
-
-    public Access buildRaidAccess(PlanModel model) {
-        if (model == null) throw new MyApplicationException("Plan is missing");
-        Access access = new Access();
-
-        Access.Type type = new Access.Type();
-
-        List<org.opencdmp.commonmodels.models.planblueprint.FieldModel> valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_ACCESS_TYPE_ID);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) {
-                try {
-                    type.setId(AccessTypeId.fromValue(valueModel.getValue()));
-                } catch (Exception e) {
-                    logger.warn("invalid access type id value: " + valueModel.getValue());
-                }
-            }
-        }
-
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_ACCESS_TYPE_SCHEMA_URI);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) {
-                try {
-                    type.setSchemaUri(AccessTypeSchemaUri.fromValue(valueModel.getValue()));
-                } catch (Exception e) {
-                    logger.warn("invalid access type schema uri: " + valueModel.getValue());
-                }
-            }
-        }
-
-        access.setType(type);
-
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_ACCESS_EMBARGO_EXPIRY);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-
-            if (valueModel != null && valueModel.getDateValue() != null) {
-                LocalDateTime ldt = LocalDateTime.ofInstant(valueModel.getDateValue(), ZoneOffset.UTC);
-                access.setEmbargoExpiry(ldt.format(DateTimeFormatter.ISO_LOCAL_DATE));
-            } else if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) {
-                try {
-                    if (valueModel.getValue().matches("^\\d{4}-\\d{2}-\\d{2}$")) {
-                        // Validate full date
-                        LocalDate.parse(valueModel.getValue());
-                        access.setEmbargoExpiry(valueModel.getValue());
+        if (model.getDescriptions() != null) {
+            for (DescriptionModel descriptionModel : model.getDescriptions()) {
+                for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(descriptionModel.getDescriptionTemplate(), List.of(SEMANTIC_TITLE_TEXT, SEMANTIC_TITLE_TYPE_ID,
+                        SEMANTIC_TITLE_TYPE_SCHEMA_URI, SEMANTIC_TITLE_LANGUAGE_ID, SEMANTIC_TITLE_LANGUAGE_SCHEMA_URI, SEMANTIC_TITLE_START_DATE, SEMANTIC_TITLE_END_DATE))) {
+                    List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, descriptionModel.getProperties().getFieldSets());
+                    for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                        this.buildTitle(values, fieldSet, propertyDefinitionFieldSetItemModel);
                     }
-                } catch (Exception e) {
-                    logger.warn("invalid access embargoExpiry value: " + valueModel.getValue());
                 }
             }
         }
 
-        Access.Statement statement = new Access.Statement();
+        return values.isEmpty() ? null : values;
+    }
 
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_ACCESS_STATEMENT_TEXT);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) statement.setText(valueModel.getValue());
+    private void buildTitle (List<Title> values, FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel) {
+        boolean valueFound = false;
+        Title item = new Title();
+
+        Title.Type type = new Title.Type();
+        String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_TYPE_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                type.setId(TitleTypeId.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid title type value: " + fieldValue);
+            }
         }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_TYPE_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                type.setSchemaUri(TitleTypeSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid title schema uri value: " + fieldValue);
+            }
+        }
+
+        if (type.getId() != null || type.getSchemaUri() != null) item.setType(type);
+        Language language = new Language();
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_LANGUAGE_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                language.setId(LanguageId.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid language id value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_LANGUAGE_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                language.setSchemaUri(LanguageSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid language schema uri value: " + fieldValue);
+            }
+        }
+        if (language.getId() != null || language.getSchemaUri() != null) item.setLanguage(language);
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_TEXT);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            item.setText(fieldValue);
+            valueFound = true;
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_START_DATE);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (this.isValidDateField(fieldValue)) {
+                item.setStartDate(fieldValue);
+                valueFound = true;
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_END_DATE);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (this.isValidDateField(fieldValue)) {
+                item.setEndDate(fieldValue);
+                valueFound = true;
+            }
+        }
+
+        if (valueFound) values.add(item);
+    }
+
+    private List<Description> buildRaidDescriptions(PlanModel model){
+
+        List<Description> values = new ArrayList<>();
+        for (FieldSetModel fieldSet : this.blueprintFieldSearcherService.searchFieldSetsBySemantics(model.getPlanBlueprint(), List.of(SEMANTIC_DESCRIPTION_TEXT, SEMANTIC_DESCRIPTION_TYPE_ID, SEMANTIC_DESCRIPTION_TYPE_SCHEMA_URI
+                , SEMANTIC_DESCRIPTION_LANGUAGE_ID, SEMANTIC_DESCRIPTION_LANGUAGE_SCHEMA_URI))) {
+            List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties().getFieldSets());
+            for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                this.buildDescription(values, fieldSet, propertyDefinitionFieldSetItemModel);
+            }
+        }
+
+        if (model.getDescriptions() != null) {
+            for (DescriptionModel descriptionModel : model.getDescriptions()) {
+                for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(descriptionModel.getDescriptionTemplate(), List.of(SEMANTIC_DESCRIPTION_TEXT, SEMANTIC_DESCRIPTION_TYPE_ID, SEMANTIC_DESCRIPTION_TYPE_SCHEMA_URI
+                        , SEMANTIC_DESCRIPTION_LANGUAGE_ID, SEMANTIC_DESCRIPTION_LANGUAGE_SCHEMA_URI))) {
+                    List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, descriptionModel.getProperties().getFieldSets());
+                    for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                        this.buildDescription(values, fieldSet, propertyDefinitionFieldSetItemModel);
+                    }
+                }
+            }
+        }
+        return values.isEmpty() ? null : values;
+    }
+
+    private void buildDescription (List<Description> values, FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel) {
+        boolean valueFound = false;
+        Description item = new Description();
+
+        Description.Type type = new Description.Type();
+        String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DESCRIPTION_TYPE_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                type.setId(DescriptionTypeId.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid description type value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DESCRIPTION_TYPE_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                type.setSchemaUri(DescriptionTypeSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid description schema uri value: " + fieldValue);
+            }
+        }
+
+        if (type.getId() != null || type.getSchemaUri() != null) item.setType(type);
 
         Language language = new Language();
 
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_ACCESS_STATEMENT_LANGUAGE_ID);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) {
-                try {
-                    language.setId(LanguageId.fromValue(valueModel.getValue()));
-                } catch (Exception e) {
-                    logger.warn("invalid access statement language id value: " + valueModel.getValue());
-                }
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DESCRIPTION_LANGUAGE_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                language.setId(LanguageId.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid language id value: " + fieldValue);
             }
         }
 
-        valueFields = this.getFieldsOfSemantic(model.getPlanBlueprint(), SEMANTIC_ACCESS_STATEMENT_LANGUAGE_SCHEMA_URI);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : valueFields) {
-            PlanBlueprintValueModel valueModel = field != null ? this.getPLanBlueprintValue(model, field.getId()) : null;
-            if (valueModel != null && valueModel.getValue() != null && !valueModel.getValue().isBlank()) {
-                try {
-                    language.setSchemaUri(LanguageSchemaUri.fromValue(valueModel.getValue()));
-                } catch (Exception e) {
-                    logger.warn("invalid access statement language schema uri  value: " + valueModel.getValue());
-                }
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DESCRIPTION_LANGUAGE_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                language.setSchemaUri(LanguageSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid language schema uri value: " + fieldValue);
             }
         }
+        if (language.getId() != null || language.getSchemaUri() != null) item.setLanguage(language);
 
-        statement.setLanguage(language);
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DESCRIPTION_TEXT);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            item.setText(fieldValue);
+            valueFound = true;
+        }
 
-        access.setStatement(statement);
-
-        return access;
+        if (valueFound) values.add(item);
     }
 
-    private List<Title> buildRaidTitle(DescriptionModel model){
-        List<Title> values = new ArrayList<>();
-        for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(model.getDescriptionTemplate(), List.of(SEMANTIC_TITLE_TEXT, SEMANTIC_TITLE_TYPE_ID,
-                SEMANTIC_TITLE_TYPE_SCHEMA_URI, SEMANTIC_TITLE_LANGUAGE_ID, SEMANTIC_TITLE_LANGUAGE_SCHEMA_URI, SEMANTIC_TITLE_START_DATE, SEMANTIC_TITLE_END_DATE))) {
-            List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties());
-            for (org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
-                boolean valueFound = false;
-                Title item = new Title();
-
-                Title.Type type = new Title.Type();
-                String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_TYPE_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        type.setId(TitleTypeId.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid title type value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_TYPE_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        type.setSchemaUri(TitleTypeSchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid title schema uri value: " + fieldValue);
-                    }
-                }
-
-                item.setType(type);
-                Language language = new Language();
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_LANGUAGE_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        language.setId(LanguageId.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid language id value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_LANGUAGE_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        language.setSchemaUri(LanguageSchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid language schema uri value: " + fieldValue);
-                    }
-                }
-                item.setLanguage(language);
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_TEXT);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    item.setText(fieldValue);
-                    valueFound = true;
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_START_DATE);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    if (this.isValidDateField(fieldValue)) {
-                        item.setStartDate(fieldValue);
-                        valueFound = true;
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_TITLE_END_DATE);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    if (this.isValidDateField(fieldValue)) {
-                        item.setEndDate(fieldValue);
-                        valueFound = true;
-                    }
-                }
-
-                if (valueFound) values.add(item);
-            }
-        }
-        return values.isEmpty() ? null : values;
-    }
-
-    private List<Description> buildRaidDescriptions(DescriptionModel model){
-
-//        Description mainDescription = new Description();
-//        mainDescription.setText(model.getLabel());
-//
-//        Description.Type mainDescriptionType = new Description.Type();
-//        mainDescriptionType.setId(DescriptionTypeId.Primary);
-//        mainDescriptionType.setSchemaUri(DescriptionTypeSchemaUri.SchemaUri);
-//        mainDescription.setType(mainDescriptionType);
-//
-//        values.add(mainDescription);
-        List<Description> values = new ArrayList<>();
-        for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(model.getDescriptionTemplate(), List.of(SEMANTIC_DESCRIPTION_TEXT, SEMANTIC_DESCRIPTION_TYPE_ID, SEMANTIC_DESCRIPTION_TYPE_SCHEMA_URI
-                , SEMANTIC_DESCRIPTION_LANGUAGE_ID, SEMANTIC_DESCRIPTION_LANGUAGE_SCHEMA_URI))) {
-            List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties());
-            for (org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
-                boolean valueFound = false;
-                Description item = new Description();
-
-                Description.Type type = new Description.Type();
-                String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DESCRIPTION_TYPE_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        type.setId(DescriptionTypeId.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid description type value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DESCRIPTION_TYPE_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        type.setSchemaUri(DescriptionTypeSchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid description schema uri value: " + fieldValue);
-                    }
-                }
-
-                item.setType(type);
-
-                Language language = new Language();
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DESCRIPTION_LANGUAGE_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        language.setId(LanguageId.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid language id value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DESCRIPTION_LANGUAGE_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        language.setSchemaUri(LanguageSchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid language schema uri value: " + fieldValue);
-                    }
-                }
-                item.setLanguage(language);
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DESCRIPTION_TEXT);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    item.setText(fieldValue);
-                    valueFound = true;
-                }
-
-                if (valueFound) values.add(item);
-            }
-        }
-        return values.isEmpty() ? null : values;
-    }
-
-    private List<Contributor> buildRaidContributors(DescriptionModel model){
+    private List<Contributor> buildRaidContributors(PlanModel model){
         List<Contributor> values = new ArrayList<>();
-        for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(model.getDescriptionTemplate(), List.of(SEMANTIC_CONTRIBUTOR_ID, SEMANTIC_CONTRIBUTOR_SCHEMA_URI, SEMANTIC_CONTRIBUTOR_POSITION_ID
+        for (FieldSetModel fieldSet : this.blueprintFieldSearcherService.searchFieldSetsBySemantics(model.getPlanBlueprint(), List.of(SEMANTIC_CONTRIBUTOR_ID, SEMANTIC_CONTRIBUTOR_SCHEMA_URI, SEMANTIC_CONTRIBUTOR_POSITION_ID
                 , SEMANTIC_CONTRIBUTOR_POSITION_SCHEMA_URI, SEMANTIC_CONTRIBUTOR_POSITION_START_DATE, SEMANTIC_CONTRIBUTOR_POSITION_END_DATE, SEMANTIC_CONTRIBUTOR_LEADER, SEMANTIC_CONTRIBUTOR_CONTACT, SEMANTIC_CONTRIBUTOR_ROLE_ID, SEMANTIC_CONTRIBUTOR_ROLE_SCHEMA_URI))) {
-            List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties());
-            for (org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
-                boolean valueFound = false;
-                Contributor item = new Contributor();
+            List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties().getFieldSets());
+            for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+               this.buildContributor(values, fieldSet, propertyDefinitionFieldSetItemModel);
+            }
+        }
 
-                Contributor.Position position = new Contributor.Position();
-                String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_POSITION_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        position.setId(ContributorPositionId.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid contributor position id value: " + fieldValue);
+        if (model.getDescriptions() != null) {
+            for (DescriptionModel descriptionModel : model.getDescriptions()) {
+                for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(descriptionModel.getDescriptionTemplate(), List.of(SEMANTIC_CONTRIBUTOR_ID, SEMANTIC_CONTRIBUTOR_SCHEMA_URI, SEMANTIC_CONTRIBUTOR_POSITION_ID
+                        , SEMANTIC_CONTRIBUTOR_POSITION_SCHEMA_URI, SEMANTIC_CONTRIBUTOR_POSITION_START_DATE, SEMANTIC_CONTRIBUTOR_POSITION_END_DATE, SEMANTIC_CONTRIBUTOR_LEADER, SEMANTIC_CONTRIBUTOR_CONTACT, SEMANTIC_CONTRIBUTOR_ROLE_ID, SEMANTIC_CONTRIBUTOR_ROLE_SCHEMA_URI))) {
+                    List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, descriptionModel.getProperties().getFieldSets());
+                    for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                        this.buildContributor(values, fieldSet, propertyDefinitionFieldSetItemModel);
                     }
                 }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_POSITION_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        position.setSchemaUri(ContributorPositionSchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid contributor schema uri value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_POSITION_START_DATE);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    if (this.isValidDateField(fieldValue)) {
-                        position.setStartDate(fieldValue);
-                        valueFound = true;
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_POSITION_END_DATE);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    if (this.isValidDateField(fieldValue)) {
-                        position.setEndDate(fieldValue);
-                        valueFound = true;
-                    }
-                }
-
-                item.setPosition(position);
-
-                Contributor.Role role = new Contributor.Role();
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_ROLE_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        role.setId(ContributorRoleId.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid contributor role id value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_ROLE_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        role.setSchemaUri(ContributorRoleSchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid contributor role uri value: " + fieldValue);
-                    }
-                }
-
-                item.setRole(role);
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    item.setId(fieldValue);
-                    valueFound = true;
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_LEADER);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        if (fieldValue.equalsIgnoreCase(ContributorLeader.Yes.value()) || fieldValue.equalsIgnoreCase("true")) {
-                            item.setLeader(ContributorLeader.Yes);
-                            valueFound = true;
-                        }
-                    } catch (Exception e) {
-                        logger.warn("invalid contributor leader value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_CONTACT);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        if (fieldValue.equalsIgnoreCase(ContributorLeader.Yes.value()) || fieldValue.equalsIgnoreCase("true")) {
-                            item.setContact(ContributorLeader.Yes);
-                            valueFound = true;
-                        }
-                    } catch (Exception e) {
-                        logger.warn("invalid contributor contact value: " + fieldValue);
-                    }
-                }
-
-                if (valueFound) values.add(item);
             }
         }
         return values.isEmpty() ? null : values;
     }
 
-    private Date buildRaidDate(DescriptionModel model, Date item){
+    private void buildContributor(List<Contributor> values, FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel) {
+        boolean valueFound = false;
+        Contributor item = new Contributor();
 
-        if (item == null) item = new Date();
-
-        for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(model.getDescriptionTemplate(), List.of(SEMANTIC_DATE_START_DATE, SEMANTIC_DATE_END_DATE))) {
-            List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties());
-            for (org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
-
-                String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DATE_START_DATE);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    if (this.isValidDateField(fieldValue)) item.setStartDate(fieldValue);
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DATE_END_DATE);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    if (this.isValidDateField(fieldValue)) item.setEndDate(fieldValue);
-                }
-
+        Contributor.Position position = new Contributor.Position();
+        String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_POSITION_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                position.setId(ContributorPositionId.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid contributor position id value: " + fieldValue);
             }
         }
 
-        return item;
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_POSITION_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                position.setSchemaUri(ContributorPositionSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid contributor schema uri value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_POSITION_START_DATE);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (this.isValidDateField(fieldValue)) {
+                position.setStartDate(fieldValue);
+                valueFound = true;
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_POSITION_END_DATE);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (this.isValidDateField(fieldValue)) {
+                position.setEndDate(fieldValue);
+                valueFound = true;
+            }
+        }
+
+        if (position.getId() != null || position.getSchemaUri() != null || position.getStartDate() != null || position.getEndDate() != null) item.setPosition(List.of(position));
+
+        Contributor.Role role = new Contributor.Role();
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_ROLE_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                role.setId(ContributorRoleId.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid contributor role id value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_ROLE_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                role.setSchemaUri(ContributorRoleSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid contributor role uri value: " + fieldValue);
+            }
+        }
+
+        if (role.getId() != null || role.getSchemaUri() != null) item.setRole(List.of(role));
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            item.setId(fieldValue);
+            valueFound = true;
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                item.setSchemaUri(ContributorSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid contributor schema uri value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_LEADER);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                if (fieldValue.equalsIgnoreCase(ContributorLeader.Yes.value()) || fieldValue.equalsIgnoreCase("true")) {
+                    item.setLeader(ContributorLeader.Yes);
+                    valueFound = true;
+                }
+            } catch (Exception e) {
+                logger.warn("invalid contributor leader value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_CONTRIBUTOR_CONTACT);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                if (fieldValue.equalsIgnoreCase(ContributorLeader.Yes.value()) || fieldValue.equalsIgnoreCase("true")) {
+                    item.setContact(ContributorLeader.Yes);
+                    valueFound = true;
+                }
+            } catch (Exception e) {
+                logger.warn("invalid contributor contact value: " + fieldValue);
+            }
+        }
+
+        if (valueFound) values.add(item);
     }
 
-    private Identifier buildRaidIdentifier(DescriptionModel model, Identifier identifier){
+    private Date buildRaidDate(PlanModel model){
 
-        if (identifier == null) identifier = new Identifier();
+        Date item = new Date();
 
-        for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(model.getDescriptionTemplate(), List.of(SEMANTIC_IDENTIFIER_ID, SEMANTIC_IDENTIFIER_SCHEMA_URI, SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_ID,
-                SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_SCHEMA_URI, SEMANTIC_IDENTIFIER_OWNER_ID, SEMANTIC_IDENTIFIER_OWNER_SCHEMA_URI, SEMANTIC_IDENTIFIER_OWNER_SERVICE_POINT, SEMANTIC_IDENTIFIER_LICENSE, SEMANTIC_IDENTIFIER_VERSION))) {
-            List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties());
-            for (org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+        for (FieldSetModel fieldSet : this.blueprintFieldSearcherService.searchFieldSetsBySemantics(model.getPlanBlueprint(), List.of(SEMANTIC_DATE_START_DATE, SEMANTIC_DATE_END_DATE))) {
+            List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties().getFieldSets());
+            for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                if (this.buildRaidDate(item, fieldSet, propertyDefinitionFieldSetItemModel)) break;
+            }
+        }
 
-                String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    identifier.setId(fieldValue);
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        identifier.setSchemaUri(IdentifierSchemaUri.fromValue(fieldValue));
-                    } catch (Exception e) {
-                        logger.warn("invalid identifier schema uri value: " + fieldValue);
+        if (model.getDescriptions() != null) {
+            for (DescriptionModel descriptionModel : model.getDescriptions()) {
+                for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(descriptionModel.getDescriptionTemplate(), List.of(SEMANTIC_DATE_START_DATE, SEMANTIC_DATE_END_DATE))) {
+                    List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, descriptionModel.getProperties().getFieldSets());
+                    for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                        if (this.buildRaidDate(item, fieldSet, propertyDefinitionFieldSetItemModel)) break;
                     }
-                }
-
-                if (identifier.getRegistrationAgency() == null) identifier.setRegistrationAgency(new Identifier.RegistrationAgency());
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    identifier.getRegistrationAgency().setId(fieldValue);
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        identifier.getRegistrationAgency().setSchemaUri(IdentifierRegistrationAgencySchemaUri.fromValue(fieldValue));
-                    } catch (Exception e) {
-                        logger.warn("invalid agency schema uri value: " + fieldValue);
-                    }
-                }
-
-                if (identifier.getOwner() == null) identifier.setOwner(new Identifier.Owner());
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_OWNER_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    identifier.getOwner().setId(fieldValue);
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_OWNER_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        identifier.getOwner().setSchemaUri(IdentifierRegistrationAgencySchemaUri.fromValue(fieldValue));
-                    } catch (Exception e) {
-                        logger.warn("invalid owner schema uri value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_OWNER_SERVICE_POINT);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    identifier.getOwner().setServicePoint(fieldValue);
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_LICENSE);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        identifier.setLicense(IdentifierLicense.fromValue(fieldValue));
-                    } catch (Exception e) {
-                        logger.warn("invalid identifier license uri value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_VERSION);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    identifier.setVersion(fieldValue);
                 }
             }
         }
+
+        return item.getStartDate() == null && item.getEndDate() == null ? null : item;
+    }
+
+    // RAiD allows one date, so only the first answered row of a field set is used and earlier values are kept
+    private boolean buildRaidDate(Date item, FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel) {
+        boolean valueFound = false;
+
+        String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DATE_START_DATE);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (this.isValidDateField(fieldValue)) {
+                if (item.getStartDate() == null) item.setStartDate(fieldValue);
+                valueFound = true;
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_DATE_END_DATE);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (this.isValidDateField(fieldValue)) {
+                if (item.getEndDate() == null) item.setEndDate(fieldValue);
+                valueFound = true;
+            }
+        }
+
+        return valueFound;
+    }
+
+    private Identifier buildRaidIdentifier(PlanModel model){
+
+        Identifier identifier = new Identifier();
+
+        for (FieldSetModel fieldSet : this.blueprintFieldSearcherService.searchFieldSetsBySemantics(model.getPlanBlueprint(), List.of(SEMANTIC_IDENTIFIER_ID, SEMANTIC_IDENTIFIER_SCHEMA_URI, SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_ID,
+                SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_SCHEMA_URI, SEMANTIC_IDENTIFIER_OWNER_ID, SEMANTIC_IDENTIFIER_OWNER_SCHEMA_URI, SEMANTIC_IDENTIFIER_OWNER_SERVICE_POINT, SEMANTIC_IDENTIFIER_LICENSE, SEMANTIC_IDENTIFIER_VERSION))) {
+            List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties().getFieldSets());
+            for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                if (this.buildIdentifier(identifier, fieldSet, propertyDefinitionFieldSetItemModel)) break;
+            }
+        }
+        if (model.getDescriptions() != null) {
+            for (DescriptionModel descriptionModel : model.getDescriptions()) {
+                for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(descriptionModel.getDescriptionTemplate(), List.of(SEMANTIC_IDENTIFIER_ID, SEMANTIC_IDENTIFIER_SCHEMA_URI, SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_ID,
+                        SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_SCHEMA_URI, SEMANTIC_IDENTIFIER_OWNER_ID, SEMANTIC_IDENTIFIER_OWNER_SCHEMA_URI, SEMANTIC_IDENTIFIER_OWNER_SERVICE_POINT, SEMANTIC_IDENTIFIER_LICENSE, SEMANTIC_IDENTIFIER_VERSION))) {
+                    List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, descriptionModel.getProperties().getFieldSets());
+                    for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                        if (this.buildIdentifier(identifier, fieldSet, propertyDefinitionFieldSetItemModel)) break;
+                    }
+                }
+            }
+        }
+
+        if (identifier.getRegistrationAgency() != null && identifier.getRegistrationAgency().getId() == null && identifier.getRegistrationAgency().getSchemaUri() == null) identifier.setRegistrationAgency(null);
+        if (identifier.getOwner() != null && identifier.getOwner().getId() == null && identifier.getOwner().getSchemaUri() == null && identifier.getOwner().getServicePoint() == null) identifier.setOwner(null);
+        if (identifier.getId() == null && identifier.getSchemaUri() == null && identifier.getRegistrationAgency() == null && identifier.getOwner() == null && identifier.getLicense() == null && identifier.getVersion() == null) return null;
 
         return identifier;
     }
 
-    private Access buildRaidAccess(DescriptionModel model, Access access){
+    // RAiD allows one identifier, so only the first answered row of a field set is used and earlier values are kept
+    private boolean buildIdentifier(Identifier identifier, FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel) {
+        boolean valueFound = false;
 
-        if (access == null) access = new Access();
+        String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (identifier.getId() == null) identifier.setId(fieldValue);
+            valueFound = true;
+        }
 
-        for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(model.getDescriptionTemplate(), List.of(SEMANTIC_ACCESS_TYPE_ID, SEMANTIC_ACCESS_TYPE_SCHEMA_URI, SEMANTIC_ACCESS_EMBARGO_EXPIRY,
-                SEMANTIC_ACCESS_STATEMENT_TEXT, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_ID, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_SCHEMA_URI))) {
-            List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties());
-            for (org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
-
-                if (access.getType() == null) access.setType(new Access.Type());
-
-                String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_TYPE_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        access.getType().setId(AccessTypeId.fromValue(fieldValue));
-                    } catch (Exception e) {
-                        logger.warn("invalid access type id value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_TYPE_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        access.getType().setSchemaUri(AccessTypeSchemaUri.fromValue(fieldValue));
-                    } catch (Exception e) {
-                        logger.warn("invalid access type schema uri: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_EMBARGO_EXPIRY);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    if (this.isValidDateField(fieldValue)) access.setEmbargoExpiry(fieldValue);
-                }
-
-                if (access.getStatement() == null) access.setStatement(new Access.Statement());
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_STATEMENT_TEXT);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    access.getStatement().setText(fieldValue);
-                }
-
-                if (access.getStatement().getLanguage() == null) access.getStatement().setLanguage(new Language());
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        access.getStatement().getLanguage().setId(LanguageId.fromValue(fieldValue));
-                    } catch (Exception e) {
-                        logger.warn("invalid access statement language id value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        access.getStatement().getLanguage().setSchemaUri(LanguageSchemaUri.fromValue(fieldValue));
-                    } catch (Exception e) {
-                        logger.warn("invalid access statement language schema uri  value: " + fieldValue);
-                    }
-                }
-
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                IdentifierSchemaUri value = IdentifierSchemaUri.fromValue(fieldValue);
+                if (identifier.getSchemaUri() == null) identifier.setSchemaUri(value);
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid identifier schema uri value: " + fieldValue);
             }
         }
+
+        if (identifier.getRegistrationAgency() == null) identifier.setRegistrationAgency(new Identifier.RegistrationAgency());
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (identifier.getRegistrationAgency().getId() == null) identifier.getRegistrationAgency().setId(fieldValue);
+            valueFound = true;
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                IdentifierRegistrationAgencySchemaUri value = IdentifierRegistrationAgencySchemaUri.fromValue(fieldValue);
+                if (identifier.getRegistrationAgency().getSchemaUri() == null) identifier.getRegistrationAgency().setSchemaUri(value);
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid agency schema uri value: " + fieldValue);
+            }
+        }
+
+        if (identifier.getOwner() == null) identifier.setOwner(new Identifier.Owner());
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_OWNER_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (identifier.getOwner().getId() == null) identifier.getOwner().setId(fieldValue);
+            valueFound = true;
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_OWNER_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                // RAiD allows only ROR (https://ror.org/) for both the owner and the registration agency, so they share one vocabulary
+                IdentifierRegistrationAgencySchemaUri value = IdentifierRegistrationAgencySchemaUri.fromValue(fieldValue);
+                if (identifier.getOwner().getSchemaUri() == null) identifier.getOwner().setSchemaUri(value);
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid owner schema uri value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_OWNER_SERVICE_POINT);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                Long value = new BigDecimal(fieldValue.strip()).longValueExact();
+                if (identifier.getOwner().getServicePoint() == null) identifier.getOwner().setServicePoint(value);
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid owner service point value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_LICENSE);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                IdentifierLicense value = IdentifierLicense.fromValue(fieldValue);
+                if (identifier.getLicense() == null) identifier.setLicense(value);
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid identifier license uri value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_IDENTIFIER_VERSION);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (identifier.getVersion() == null) identifier.setVersion(fieldValue);
+            valueFound = true;
+        }
+
+        return valueFound;
+    }
+
+    private Access buildRaidAccess(PlanModel model){
+
+        Access access = new Access();
+
+        for (FieldSetModel fieldSet : this.blueprintFieldSearcherService.searchFieldSetsBySemantics(model.getPlanBlueprint(), List.of(SEMANTIC_ACCESS_TYPE_ID, SEMANTIC_ACCESS_TYPE_SCHEMA_URI, SEMANTIC_ACCESS_EMBARGO_EXPIRY,
+                SEMANTIC_ACCESS_STATEMENT_TEXT, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_ID, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_SCHEMA_URI))) {
+            List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties().getFieldSets());
+            for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                if (this.buildAccess(access, fieldSet, propertyDefinitionFieldSetItemModel)) break;
+            }
+        }
+
+        if (model.getDescriptions() != null) {
+            for (DescriptionModel descriptionModel : model.getDescriptions()) {
+                for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(descriptionModel.getDescriptionTemplate(), List.of(SEMANTIC_ACCESS_TYPE_ID, SEMANTIC_ACCESS_TYPE_SCHEMA_URI, SEMANTIC_ACCESS_EMBARGO_EXPIRY,
+                        SEMANTIC_ACCESS_STATEMENT_TEXT, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_ID, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_SCHEMA_URI))) {
+                    List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, descriptionModel.getProperties().getFieldSets());
+                    for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                        if (this.buildAccess(access, fieldSet, propertyDefinitionFieldSetItemModel)) break;
+                    }
+                }
+            }
+        }
+
+        if (access.getType() != null && access.getType().getId() == null && access.getType().getSchemaUri() == null) access.setType(null);
+        if (access.getStatement() != null && access.getStatement().getLanguage() != null && access.getStatement().getLanguage().getId() == null && access.getStatement().getLanguage().getSchemaUri() == null) access.getStatement().setLanguage(null);
+        if (access.getStatement() != null && access.getStatement().getText() == null && access.getStatement().getLanguage() == null) access.setStatement(null);
+        if (access.getType() == null && access.getEmbargoExpiry() == null && access.getStatement() == null) return null;
 
         return access;
     }
 
-    private List<Organisation> buildRaidOrganisations(DescriptionModel model){
+    // RAiD allows one access block, so only the first answered row of a field set is used and earlier values are kept
+    private boolean buildAccess(Access access, FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel) {
+        boolean valueFound = false;
+
+        if (access.getType() == null) access.setType(new Access.Type());
+
+        String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_TYPE_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                AccessTypeId value = AccessTypeId.fromValue(fieldValue);
+                if (access.getType().getId() == null) access.getType().setId(value);
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid access type id value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_TYPE_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                AccessTypeSchemaUri value = AccessTypeSchemaUri.fromValue(fieldValue);
+                if (access.getType().getSchemaUri() == null) access.getType().setSchemaUri(value);
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid access type schema uri: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_EMBARGO_EXPIRY);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (this.isValidDateField(fieldValue)) {
+                if (access.getEmbargoExpiry() == null) access.setEmbargoExpiry(fieldValue);
+                valueFound = true;
+            }
+        }
+
+        if (access.getStatement() == null) access.setStatement(new Access.Statement());
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_STATEMENT_TEXT);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (access.getStatement().getText() == null) access.getStatement().setText(fieldValue);
+            valueFound = true;
+        }
+
+        if (access.getStatement().getLanguage() == null) access.getStatement().setLanguage(new Language());
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                LanguageId value = LanguageId.fromValue(fieldValue);
+                if (access.getStatement().getLanguage().getId() == null) access.getStatement().getLanguage().setId(value);
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid access statement language id value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                LanguageSchemaUri value = LanguageSchemaUri.fromValue(fieldValue);
+                if (access.getStatement().getLanguage().getSchemaUri() == null) access.getStatement().getLanguage().setSchemaUri(value);
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid access statement language schema uri  value: " + fieldValue);
+            }
+        }
+
+        return valueFound;
+    }
+
+    private List<Organisation> buildRaidOrganisations(PlanModel model){
         List<Organisation> values = new ArrayList<>();
-        for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(model.getDescriptionTemplate(), List.of(SEMANTIC_ORGANISATION_ID, SEMANTIC_ORGANISATION_SCHEMA_URI, SEMANTIC_ORGANISATION_ROLE_ID
+        for (FieldSetModel fieldSet : this.blueprintFieldSearcherService.searchFieldSetsBySemantics(model.getPlanBlueprint(), List.of(SEMANTIC_ORGANISATION_ID, SEMANTIC_ORGANISATION_SCHEMA_URI, SEMANTIC_ORGANISATION_ROLE_ID
                 , SEMANTIC_ORGANISATION_ROLE_SCHEMA_URI, SEMANTIC_ORGANISATION_ROLE_START_DATE, SEMANTIC_ORGANISATION_ROLE_END_DATE))) {
-            List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties());
-            for (org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
-                boolean valueFound = false;
-                Organisation item = new Organisation();
+            List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties().getFieldSets());
+            for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                this.buildRaidOrganisation(values, fieldSet, propertyDefinitionFieldSetItemModel);
+            }
+        }
 
-                Organisation.Role role = new Organisation.Role();
-                String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_ROLE_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        role.setId(OrganisationRoleId.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid organisation role id value: " + fieldValue);
+        if (model.getDescriptions() != null) {
+            for (DescriptionModel descriptionModel : model.getDescriptions()) {
+                for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(descriptionModel.getDescriptionTemplate(), List.of(SEMANTIC_ORGANISATION_ID, SEMANTIC_ORGANISATION_SCHEMA_URI, SEMANTIC_ORGANISATION_ROLE_ID
+                        , SEMANTIC_ORGANISATION_ROLE_SCHEMA_URI, SEMANTIC_ORGANISATION_ROLE_START_DATE, SEMANTIC_ORGANISATION_ROLE_END_DATE))) {
+                    List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, descriptionModel.getProperties().getFieldSets());
+                    for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                        this.buildRaidOrganisation(values, fieldSet, propertyDefinitionFieldSetItemModel);
                     }
                 }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_ROLE_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        role.setSchemaUri(OrganisationRoleSchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid organisation role schema uri value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_ROLE_START_DATE);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    if (this.isValidDateField(fieldValue)) {
-                        role.setStartDate(fieldValue);
-                        valueFound = true;
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_ROLE_END_DATE);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    if (this.isValidDateField(fieldValue)) {
-                        role.setEndDate(fieldValue);
-                        valueFound = true;
-                    }
-                }
-
-                item.setRole(role);
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    item.setId(fieldValue);
-                    valueFound = true;
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        item.setSchemaUri(OrganisationSchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid organisation schema uri value: " + fieldValue);
-                    }
-                }
-
-                if (valueFound) values.add(item);
             }
         }
         return values.isEmpty() ? null : values;
     }
 
-    private List<RelatedObject> buildRaidRelatedObjects(DescriptionModel model){
+    private void buildRaidOrganisation(List<Organisation> values, FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel) {
+        boolean valueFound = false;
+        Organisation item = new Organisation();
+
+        Organisation.Role role = new Organisation.Role();
+        String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_ROLE_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                role.setId(OrganisationRoleId.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid organisation role id value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_ROLE_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                role.setSchemaUri(OrganisationRoleSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid organisation role schema uri value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_ROLE_START_DATE);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (this.isValidDateField(fieldValue)) {
+                role.setStartDate(fieldValue);
+                valueFound = true;
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_ROLE_END_DATE);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            if (this.isValidDateField(fieldValue)) {
+                role.setEndDate(fieldValue);
+                valueFound = true;
+            }
+        }
+
+        if (role.getId() != null || role.getSchemaUri() != null || role.getStartDate() != null || role.getEndDate() != null) item.setRole(List.of(role));
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            item.setId(fieldValue);
+            valueFound = true;
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ORGANISATION_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                item.setSchemaUri(OrganisationSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid organisation schema uri value: " + fieldValue);
+            }
+        }
+
+        if (valueFound) values.add(item);
+    }
+
+    private List<RelatedObject> buildRaidRelatedObjects(PlanModel model){
         List<RelatedObject> values = new ArrayList<>();
-        for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(model.getDescriptionTemplate(), List.of(SEMANTIC_RELATED_OBJECT_ID, SEMANTIC_RELATED_OBJECT_SCHEMA_URI, SEMANTIC_RELATED_OBJECT_TYPE_ID
+        for (FieldSetModel fieldSet : this.blueprintFieldSearcherService.searchFieldSetsBySemantics(model.getPlanBlueprint(), List.of(SEMANTIC_RELATED_OBJECT_ID, SEMANTIC_RELATED_OBJECT_SCHEMA_URI, SEMANTIC_RELATED_OBJECT_TYPE_ID
                 , SEMANTIC_RELATED_OBJECT_TYPE_SCHEMA_URI, SEMANTIC_RELATED_OBJECT_CATEGORY_ID, SEMANTIC_RELATED_OBJECT_CATEGORY_SCHEMA_URI))) {
-            List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties());
-            for (org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
-                boolean valueFound = false;
-                RelatedObject item = new RelatedObject();
-
-                RelatedObject.Type type = new RelatedObject.Type();
-                String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_TYPE_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        type.setId(RelatedObjectTypeId.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid related object type id value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_TYPE_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        type.setSchemaUri(RelatedObjectTypeSchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid related object schema uri value: " + fieldValue);
-                    }
-                }
-
-                item.setType(type);
-
-                RelatedObject.Category category = new RelatedObject.Category();
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_CATEGORY_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        category.setId(RelatedObjectCategoryId.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid related object category id value: " + fieldValue);
-                    }
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_CATEGORY_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        category.setSchemaUri(RelatedObjectCategorySchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid related object category schema uri value: " + fieldValue);
-                    }
-                }
-
-                item.setCategory(category);
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    item.setId(fieldValue);
-                    valueFound = true;
-                }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        item.setSchemaUri(RelatedObjectSchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid related object schema uri value: " + fieldValue);
-                    }
-                }
-
-                if (valueFound) values.add(item);
+            List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties().getFieldSets());
+            for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                this.buildRelatedObject(values, fieldSet, propertyDefinitionFieldSetItemModel);
             }
         }
+
+        if (model.getDescriptions() != null) {
+            for (DescriptionModel descriptionModel : model.getDescriptions()) {
+                for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(descriptionModel.getDescriptionTemplate(), List.of(SEMANTIC_RELATED_OBJECT_ID, SEMANTIC_RELATED_OBJECT_SCHEMA_URI, SEMANTIC_RELATED_OBJECT_TYPE_ID
+                        , SEMANTIC_RELATED_OBJECT_TYPE_SCHEMA_URI, SEMANTIC_RELATED_OBJECT_CATEGORY_ID, SEMANTIC_RELATED_OBJECT_CATEGORY_SCHEMA_URI))) {
+                    List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, descriptionModel.getProperties().getFieldSets());
+                    for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                        this.buildRelatedObject(values, fieldSet, propertyDefinitionFieldSetItemModel);
+                    }
+                }
+            }
+        }
+
         return values.isEmpty() ? null : values;
     }
 
-    private List<AlternateIdentifier> buildRaidAlternateIdentifiers(DescriptionModel model){
+    private void buildRelatedObject(List<RelatedObject> values, FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel) {
+        boolean valueFound = false;
+        RelatedObject item = new RelatedObject();
+
+        RelatedObject.Type type = new RelatedObject.Type();
+        String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_TYPE_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                type.setId(RelatedObjectTypeId.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid related object type id value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_TYPE_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                type.setSchemaUri(RelatedObjectTypeSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid related object schema uri value: " + fieldValue);
+            }
+        }
+
+        if (type.getId() != null || type.getSchemaUri() != null) item.setType(type);
+
+        RelatedObject.Category category = new RelatedObject.Category();
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_CATEGORY_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                category.setId(RelatedObjectCategoryId.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid related object category id value: " + fieldValue);
+            }
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_CATEGORY_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                category.setSchemaUri(RelatedObjectCategorySchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid related object category schema uri value: " + fieldValue);
+            }
+        }
+
+        if (category.getId() != null || category.getSchemaUri() != null) item.setCategory(List.of(category));
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            item.setId(fieldValue);
+            valueFound = true;
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_OBJECT_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                item.setSchemaUri(RelatedObjectSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid related object schema uri value: " + fieldValue);
+            }
+        }
+
+        if (valueFound) values.add(item);
+    }
+
+    private List<AlternateIdentifier> buildRaidAlternateIdentifiers(PlanModel model){
         List<AlternateIdentifier> values = new ArrayList<>();
-        for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(model.getDescriptionTemplate(), List.of(SEMANTIC_ALTERNATE_IDENTIFIER_ID, SEMANTIC_ALTERNATE_IDENTIFIER_TYPE))) {
-            List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties());
-            for (org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
-                boolean valueFound = false;
-                AlternateIdentifier item = new AlternateIdentifier();
+        for (FieldSetModel fieldSet : this.blueprintFieldSearcherService.searchFieldSetsBySemantics(model.getPlanBlueprint(), List.of(SEMANTIC_ALTERNATE_IDENTIFIER_ID, SEMANTIC_ALTERNATE_IDENTIFIER_TYPE))) {
+            List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties().getFieldSets());
+            for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+               this.buildAlternateIdentifier(values, fieldSet, propertyDefinitionFieldSetItemModel);
+            }
+        }
 
-                String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ALTERNATE_IDENTIFIER_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    item.setId(fieldValue);
-                    valueFound = true;
+        if (model.getDescriptions() != null) {
+            for (DescriptionModel descriptionModel : model.getDescriptions()) {
+                for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(descriptionModel.getDescriptionTemplate(), List.of(SEMANTIC_ALTERNATE_IDENTIFIER_ID, SEMANTIC_ALTERNATE_IDENTIFIER_TYPE))) {
+                    List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, descriptionModel.getProperties().getFieldSets());
+                    for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                        this.buildAlternateIdentifier(values, fieldSet, propertyDefinitionFieldSetItemModel);
+                    }
                 }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ALTERNATE_IDENTIFIER_TYPE);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    item.setType(fieldValue);
-                    valueFound = true;
-                }
-
-                if (valueFound) values.add(item);
             }
         }
         return values.isEmpty() ? null : values;
     }
 
-    private List<AlternativeUrl> buildRaidAlternateUrls(DescriptionModel model){
+    private void buildAlternateIdentifier(List<AlternateIdentifier> values, FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel) {
+        boolean valueFound = false;
+        AlternateIdentifier item = new AlternateIdentifier();
+
+        String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ALTERNATE_IDENTIFIER_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            item.setId(fieldValue);
+            valueFound = true;
+        }
+
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ALTERNATE_IDENTIFIER_TYPE);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            item.setType(fieldValue);
+            valueFound = true;
+        }
+
+        if (valueFound) values.add(item);
+    }
+
+    private List<AlternativeUrl> buildRaidAlternateUrls(PlanModel model){
         List<AlternativeUrl> values = new ArrayList<>();
-        for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(model.getDescriptionTemplate(), List.of(SEMANTIC_ALTERNATE_URL_URL))) {
-            List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties());
-            for (org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
-                boolean valueFound = false;
-                AlternativeUrl item = new AlternativeUrl();
+        for (FieldSetModel fieldSet : this.blueprintFieldSearcherService.searchFieldSetsBySemantics(model.getPlanBlueprint(), List.of(SEMANTIC_ALTERNATE_URL_URL))) {
+            List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties().getFieldSets());
+            for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                this.buildRaidAlternateUrl(values, fieldSet, propertyDefinitionFieldSetItemModel);
+            }
+        }
 
-                String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ALTERNATE_URL_URL);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        item.setUrl(URI.create(fieldValue));
-                        valueFound = true;
-                    } catch (Exception ex) {
-                        logger.warn("invalid Alternative Url value: " + fieldValue);
+        if (model.getDescriptions() != null) {
+            for (DescriptionModel descriptionModel : model.getDescriptions()) {
+                for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(descriptionModel.getDescriptionTemplate(), List.of(SEMANTIC_ALTERNATE_URL_URL))) {
+                    List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, descriptionModel.getProperties().getFieldSets());
+                    for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                        this.buildRaidAlternateUrl(values, fieldSet, propertyDefinitionFieldSetItemModel);
                     }
-
                 }
-
-                if (valueFound) values.add(item);
             }
         }
         return values.isEmpty() ? null : values;
     }
 
-    private List<RelatedRaid> buildRaidRelatedRaids(DescriptionModel model){
+    private void buildRaidAlternateUrl(List<AlternativeUrl> values, FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel) {
+        boolean valueFound = false;
+        AlternativeUrl item = new AlternativeUrl();
+
+        String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_ALTERNATE_URL_URL);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                item.setUrl(URI.create(fieldValue));
+                valueFound = true;
+            } catch (Exception ex) {
+                logger.warn("invalid Alternative Url value: " + fieldValue);
+            }
+
+        }
+
+        if (valueFound) values.add(item);
+    }
+
+    private List<RelatedRaid> buildRaidRelatedRaids(PlanModel model){
         List<RelatedRaid> values = new ArrayList<>();
-        for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(model.getDescriptionTemplate(), List.of(SEMANTIC_RELATED_RAID_ID, SEMANTIC_RELATED_RAID_TYPE_ID, SEMANTIC_RELATED_RAID_TYPE_SCHEMA_URI))) {
-            List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties());
-            for (org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
-                boolean valueFound = false;
-                RelatedRaid item = new RelatedRaid();
+        for (FieldSetModel fieldSet : this.blueprintFieldSearcherService.searchFieldSetsBySemantics(model.getPlanBlueprint(), List.of(SEMANTIC_RELATED_RAID_ID, SEMANTIC_RELATED_RAID_TYPE_ID, SEMANTIC_RELATED_RAID_TYPE_SCHEMA_URI))) {
+            List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, model.getProperties().getFieldSets());
+            for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                this.buildRaidRelatedRaid(values, fieldSet, propertyDefinitionFieldSetItemModel);
+            }
+        }
 
-                RelatedRaid.Type type = new RelatedRaid.Type();
-                String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_RAID_TYPE_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        type.setId(RelatedRaidTypeId.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid related raid type id value: " + fieldValue);
+        if (model.getDescriptions() != null) {
+            for (DescriptionModel descriptionModel : model.getDescriptions()) {
+                for (FieldSetModel fieldSet : this.templateFieldSearcherService.searchFieldSetsBySemantics(descriptionModel.getDescriptionTemplate(), List.of(SEMANTIC_RELATED_RAID_ID, SEMANTIC_RELATED_RAID_TYPE_ID, SEMANTIC_RELATED_RAID_TYPE_SCHEMA_URI))) {
+                    List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> propertyDefinitionFieldSetItemModels = this.findFieldSetValue(fieldSet, descriptionModel.getProperties().getFieldSets());
+                    for (org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetItemModels) {
+                        this.buildRaidRelatedRaid(values, fieldSet, propertyDefinitionFieldSetItemModel);
                     }
                 }
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_RAID_TYPE_SCHEMA_URI);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    try {
-                        type.setSchemaUri(RelatedRaidTypeSchemaUri.fromValue(fieldValue));
-                        valueFound = true;
-                    } catch (Exception e) {
-                        logger.warn("invalid related raid type schema uri value: " + fieldValue);
-                    }
-                }
-
-                item.setType(type);
-
-                fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_RAID_ID);
-                if (fieldValue != null && !fieldValue.isBlank()) {
-                    item.setId(fieldValue);
-                    valueFound = true;
-                }
-
-                if (valueFound) values.add(item);
             }
         }
         return values.isEmpty() ? null : values;
     }
 
+    private void buildRaidRelatedRaid(List<RelatedRaid> values, FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel) {
+        boolean valueFound = false;
+        RelatedRaid item = new RelatedRaid();
 
-    private List<ReferenceModel> getReferenceModelOfTypeCode(PlanModel plan, String code){
-        List<ReferenceModel> response = new ArrayList<>();
-        if (plan.getReferences() == null) return response;
-        for (PlanReferenceModel planReferenceModel : plan.getReferences()){
-            if (planReferenceModel.getReference() != null && planReferenceModel.getReference().getType() != null && planReferenceModel.getReference().getType().getCode() != null  && planReferenceModel.getReference().getType().getCode().equals(code)){
-                response.add(planReferenceModel.getReference());
+        RelatedRaid.Type type = new RelatedRaid.Type();
+        String fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_RAID_TYPE_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                type.setId(RelatedRaidTypeId.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid related raid type id value: " + fieldValue);
             }
         }
 
-        return response;
-    }
-
-    private List<org.opencdmp.commonmodels.models.planblueprint.FieldModel> getFieldsOfSemantic(PlanBlueprintModel blueprintModel, String semanticKey){
-        if (blueprintModel == null || blueprintModel.getDefinition() == null || blueprintModel.getDefinition().getSections() == null) return null;
-        List<org.opencdmp.commonmodels.models.planblueprint.FieldModel> fieldModels = new ArrayList<>();
-        for (SectionModel sectionModel : blueprintModel.getDefinition().getSections()){
-            if (sectionModel.getFields() != null){
-	            sectionModel.getFields().stream().filter(x -> x.getSemantics() != null && x.getSemantics().contains(semanticKey)).findFirst().ifPresent(fieldModels::add);
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_RAID_TYPE_SCHEMA_URI);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            try {
+                type.setSchemaUri(RelatedRaidTypeSchemaUri.fromValue(fieldValue));
+                valueFound = true;
+            } catch (Exception e) {
+                logger.warn("invalid related raid type schema uri value: " + fieldValue);
             }
         }
-        return fieldModels;
-    }
 
-    private PlanBlueprintValueModel getPLanBlueprintValue(PlanModel plan, UUID id){
-        if (plan == null || plan.getProperties() == null || plan.getProperties().getPlanBlueprintValues() == null) return null;
-        return plan.getProperties().getPlanBlueprintValues().stream().filter(x-> x.getFieldId().equals(id)).findFirst().orElse(null);
-    }
-    
-    //endregion
+        if (type.getId() != null || type.getSchemaUri() != null) item.setType(type);
 
-
-    private List<org.opencdmp.commonmodels.models.description.FieldModel> findValueField(FieldModel fieldModel, PropertyDefinitionModel descriptionTemplateModel){
-        List<org.opencdmp.commonmodels.models.description.FieldModel> items = new ArrayList<>();
-        if (fieldModel == null || descriptionTemplateModel == null || descriptionTemplateModel.getFieldSets() == null) return items;
-        for (PropertyDefinitionFieldSetModel propertyDefinitionFieldSetModel : descriptionTemplateModel.getFieldSets().values()){
-            if (propertyDefinitionFieldSetModel.getItems() == null) continue;
-            for (PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel : propertyDefinitionFieldSetModel.getItems()){
-                if (propertyDefinitionFieldSetItemModel.getFields() == null) continue;
-                org.opencdmp.commonmodels.models.description.FieldModel valueField = propertyDefinitionFieldSetItemModel.getFields().getOrDefault(fieldModel.getId(), null);
-                if (valueField != null) items.add(valueField);
-            }
+        fieldValue = this.findValueFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, SEMANTIC_RELATED_RAID_ID);
+        if (fieldValue != null && !fieldValue.isBlank()) {
+            item.setId(fieldValue);
+            valueFound = true;
         }
-        return items;
+
+        if (valueFound) values.add(item);
     }
 
-    private List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> findFieldSetValue(FieldSetModel fieldSetModel, PropertyDefinitionModel descriptionTemplateModel){
-        List<org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel> items = new ArrayList<>();
-        if (fieldSetModel == null || descriptionTemplateModel == null || descriptionTemplateModel.getFieldSets() == null) return items;
-        PropertyDefinitionFieldSetModel propertyDefinitionFieldSetModel =  descriptionTemplateModel.getFieldSets().getOrDefault(fieldSetModel.getId(), null);
+
+    private List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> findFieldSetValue(FieldSetModel fieldSetModel, Map<String, PropertyDefinitionFieldSetModel> fieldSets){
+        List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> items = new ArrayList<>();
+        if (fieldSetModel == null || fieldSets == null) return items;
+        PropertyDefinitionFieldSetModel propertyDefinitionFieldSetModel =  fieldSets.getOrDefault(fieldSetModel.getId(), null);
         if (propertyDefinitionFieldSetModel != null && propertyDefinitionFieldSetModel.getItems() != null) return propertyDefinitionFieldSetModel.getItems();
         return items;
     }
-    
-    private String findValueFieldBySemantic(FieldSetModel fieldSet, org.opencdmp.commonmodels.models.description.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel, String semantic){
+
+    private String findValueFieldBySemantic(FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel, String semantic) {
+        List<String> findValueFieldBySemantic = this.findValuesFieldBySemantic(fieldSet, propertyDefinitionFieldSetItemModel, semantic);
+        return findValueFieldBySemantic != null && !findValueFieldBySemantic.isEmpty() ? findValueFieldBySemantic.getFirst(): null;
+    }
+
+    private List<String> findValuesFieldBySemantic(FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel, String semantic){
         FieldModel field = this.templateFieldSearcherService.findFieldBySemantic(fieldSet, semantic);
+        List<String> values = new ArrayList<>();
         if (field != null) {
-            org.opencdmp.commonmodels.models.description.FieldModel valueField = propertyDefinitionFieldSetItemModel.getFields().getOrDefault(field.getId(), null);
+            org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel valueField = propertyDefinitionFieldSetItemModel.getFields().getOrDefault(field.getId(), null);
             if (valueField != null) {
                 switch (field.getData().getFieldType()) {
                     case FREE_TEXT, TEXT_AREA, RICH_TEXT_AREA -> {
-                        if (valueField.getTextValue() != null && !valueField.getTextValue().isBlank()) return valueField.getTextValue();
+                        if (valueField.getTextValue() != null && !valueField.getTextValue().isBlank()) values.add(valueField.getTextValue());
                     }
                     case BOOLEAN_DECISION, CHECK_BOX -> {
-                        if (valueField.getBooleanValue() != null) return valueField.getBooleanValue().toString();
+                        if (valueField.getBooleanValue() != null) values.add(valueField.getBooleanValue().toString());
+                    }
+                    case NUMBER -> {
+                        if (valueField.getNumberValue() != null) values.add(String.valueOf(valueField.getNumberValue()));
                     }
                     case DATE_PICKER -> {
-                        if (valueField.getDateValue() != null) return (DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault()).format(valueField.getDateValue()));
+                        try {
+                            if (valueField.getDateValue() != null) values.add((DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC).format(valueField.getDateValue())));
+                        } catch (Exception e) {
+                            logger.error(e.getMessage(), e);
+                        }
                     }
                     case DATASET_IDENTIFIER, VALIDATION -> {
                         if (valueField.getExternalIdentifier() != null && valueField.getExternalIdentifier().getIdentifier() != null && !valueField.getExternalIdentifier().getIdentifier().isBlank()) {
-                            return (valueField.getExternalIdentifier().getIdentifier());
+                            values.add(valueField.getExternalIdentifier().getIdentifier());
                         }
                     }
                     case TAGS -> {
                         if (valueField.getTextListValue() != null && !valueField.getTextListValue().isEmpty()) {
-                            return (valueField.getTextListValue().getFirst());
+                            values.add((valueField.getTextListValue().getFirst()));
                         }
                     }
                     case SELECT -> {
@@ -1199,7 +1180,7 @@ public class RaidFileTransformerService implements FileTransformerClient {
                             SelectDataModel selectDataModel = (SelectDataModel)field.getData();
                             if (selectDataModel != null && selectDataModel.getOptions() != null && !selectDataModel.getOptions().isEmpty()){
                                 for (SelectDataModel.OptionModel option : selectDataModel.getOptions()){
-                                    if (valueField.getTextListValue().contains(option.getValue()) || valueField.getTextListValue().contains(option.getLabel())) return (option.getValue());
+                                    if (valueField.getTextListValue().contains(option.getValue()) || valueField.getTextListValue().contains(option.getLabel())) values.add(option.getValue());
                                 }
                             }
                         }
@@ -1209,7 +1190,15 @@ public class RaidFileTransformerService implements FileTransformerClient {
                             RadioBoxDataModel radioBoxModel = (RadioBoxDataModel)field.getData();
                             if (radioBoxModel != null && radioBoxModel.getOptions() != null && !radioBoxModel.getOptions().isEmpty()){
                                 for (RadioBoxDataModel.RadioBoxOptionModel option : radioBoxModel.getOptions()){
-                                    if (valueField.getTextListValue().contains(option.getValue()) || valueField.getTextListValue().contains(option.getLabel())) return option.getValue();
+                                    if (valueField.getTextListValue().contains(option.getValue()) || valueField.getTextListValue().contains(option.getLabel())) values.add(option.getValue());
+                                }
+                            }
+                        }
+                        if (valueField.getTextValue() != null && !valueField.getTextValue().isEmpty()) {
+                            RadioBoxDataModel radioBoxModel = (RadioBoxDataModel)field.getData();
+                            if (radioBoxModel != null && radioBoxModel.getOptions() != null && !radioBoxModel.getOptions().isEmpty()){
+                                for (RadioBoxDataModel.RadioBoxOptionModel option : radioBoxModel.getOptions()){
+                                    if (valueField.getTextValue().equalsIgnoreCase(option.getValue()) || valueField.getTextValue().equalsIgnoreCase(option.getLabel())) values.add(option.getValue());
                                 }
                             }
                         }
@@ -1217,11 +1206,9 @@ public class RaidFileTransformerService implements FileTransformerClient {
                     case REFERENCE_TYPES -> {
                         if (valueField.getReferences() != null && !valueField.getReferences().isEmpty()) {
                             for (ReferenceModel referenceModel : valueField.getReferences()) {
-                                if (referenceModel == null
-                                        || referenceModel.getType() == null || referenceModel.getType().getCode() == null || referenceModel.getType().getCode().isBlank()
-                                        || referenceModel.getDefinition() == null || referenceModel.getDefinition().getFields() == null || referenceModel.getDefinition().getFields().isEmpty()) continue;
+                                if (referenceModel == null) continue;
                                 if (referenceModel.getReference() != null && !referenceModel.getReference().isBlank()) {
-                                    return referenceModel.getReference();
+                                    values.add(referenceModel.getReference());
                                 }
                             }
                         }
@@ -1229,7 +1216,7 @@ public class RaidFileTransformerService implements FileTransformerClient {
                 }
             }
         }
-       return null;
+        return !values.isEmpty() ? values: null;
     }
     //endregion
 
@@ -1250,13 +1237,20 @@ public class RaidFileTransformerService implements FileTransformerClient {
             Raid raid = this.jsonHandlingService.fromJson(Raid.class, new String(bytes, StandardCharsets.UTF_8));
             if (raid == null) throw new MyApplicationException("RAID is missing");
 
+            if (raid.getTitles() != null) {
+                Title title = raid.getTitles().stream().filter(x -> x != null && x.getText() != null && !x.getText().isBlank() && x.getType() != null && TitleTypeId.Primary.equals(x.getType().getId())).findFirst()
+                        .orElse(raid.getTitles().stream().filter(x -> x != null && x.getText() != null && !x.getText().isBlank()).findFirst().orElse(null));
+                if (title != null) model.setLabel(title.getText());
+            }
 
             if (raid.getAccess() != null && raid.getAccess().getType() != null && raid.getAccess().getType().getId() != null && raid.getAccess().getType().getId().equals(AccessTypeId.OpenAccess)) model.setAccessType(PlanAccessType.Public);
             else if (raid.getAccess() != null && raid.getAccess().getType() != null && raid.getAccess().getType().getId() != null && raid.getAccess().getType().getId().equals(AccessTypeId.EmbargoedAccess)) model.setAccessType(PlanAccessType.Restricted);
             else model.setAccessType(PlanAccessType.Restricted);
 
-            model.setProperties(buildPlanPropertiesModel(planImportModel.getBlueprintModel(), raid));
-            if (planImportModel.getBlueprintModel() != null) model.setPlanBlueprint(planImportModel.getBlueprintModel());
+            if (planImportModel.getBlueprintModel() != null) {
+                model.setProperties(buildPlanPropertiesModel(planImportModel.getBlueprintModel(), raid));
+                model.setPlanBlueprint(planImportModel.getBlueprintModel());
+            }
 
         } catch (JacksonException e) {
             throw new RuntimeException(e);
@@ -1269,174 +1263,375 @@ public class RaidFileTransformerService implements FileTransformerClient {
         PlanPropertiesModel planPropertiesModel = new PlanPropertiesModel();
         if (raid == null) return planPropertiesModel;
 
-        planPropertiesModel.setPlanBlueprintValues(new ArrayList<>());
+        if (planBlueprintModel == null) throw new MyApplicationException("planBlueprintModel is missing");
+        if (planBlueprintModel.getDefinition() == null) return planPropertiesModel;
 
-        if (raid.getIdentifier() != null) planPropertiesModel.getPlanBlueprintValues().addAll(buildPlanBlueprintValuesByRaidIdentifier(planBlueprintModel, raid.getIdentifier()));
-        if (raid.getDate() != null) planPropertiesModel.getPlanBlueprintValues().addAll(buildPlanBlueprintValuesByRaidDate(planBlueprintModel, raid.getDate()));
-        if (raid.getAccess() != null) planPropertiesModel.getPlanBlueprintValues().addAll(buildPlanBlueprintValuesByRaidAccess(planBlueprintModel, raid.getAccess()));
+        Map<String, PropertyDefinitionFieldSetModel> fieldSets = new HashMap<>();
+
+        if (raid.getIdentifier() != null) fieldSets.putAll(this.buildPlanBlueprintValuesByRaidIdentifier(planBlueprintModel, raid.getIdentifier()));
+        if (raid.getDate() != null) fieldSets.putAll(buildPlanBlueprintValuesByRaidDate(planBlueprintModel, raid.getDate()));
+        if (raid.getAccess() != null) fieldSets.putAll(buildPlanBlueprintValuesByRaidAccess(planBlueprintModel, raid.getAccess()));
+
+        for (FieldSetModel fieldSetModel: planBlueprintModel.getDefinition().getAllFieldSets()){
+            if (!fieldSets.containsKey(fieldSetModel.getId())){
+                Map<String, org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel> fieldsMap = new HashMap<>();
+                for (org.opencdmp.commonmodels.models.planblueprintdescriptiontemplatefields.FieldModel templateFieldModel: fieldSetModel.getFields()){
+                    org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel fieldModel = new org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel();
+                    fieldModel.setId(templateFieldModel.getId());
+                    fieldsMap.put(templateFieldModel.getId(), fieldModel);
+                }
+
+                PropertyDefinitionFieldSetModel propertyDefinitionFieldSetModel = new PropertyDefinitionFieldSetModel();
+                propertyDefinitionFieldSetModel.setItems(new ArrayList<>());
+
+                PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel = new PropertyDefinitionFieldSetItemModel();
+                propertyDefinitionFieldSetItemModel.setFields(fieldsMap);
+                propertyDefinitionFieldSetItemModel.setOrdinal(propertyDefinitionFieldSetModel.getItems().size());
+
+                propertyDefinitionFieldSetModel.getItems().add(propertyDefinitionFieldSetItemModel);
+
+                fieldSets.put(fieldSetModel.getId(), propertyDefinitionFieldSetModel);
+            }
+        }
+
+        planPropertiesModel.setFieldSets(fieldSets);
 
         return planPropertiesModel;
     }
 
-    private List<PlanBlueprintValueModel> buildPlanBlueprintValuesByRaidIdentifier(PlanBlueprintModel planBlueprintModel, Identifier identifier) {
-        List<PlanBlueprintValueModel> planBlueprintValueModels = new ArrayList<>();
+    private Map<String, PropertyDefinitionFieldSetModel> buildPlanBlueprintValuesByRaidIdentifier(PlanBlueprintModel planBlueprintModel, Identifier identifier){
+        Map<String, PropertyDefinitionFieldSetModel> fieldSetModelMap = new HashMap<>();
 
-        if (planBlueprintModel == null || identifier == null) return planBlueprintValueModels;
+        if (planBlueprintModel == null) throw new MyApplicationException("planBlueprintModel is missing");
 
-        List<org.opencdmp.commonmodels.models.planblueprint.FieldModel> fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_IDENTIFIER_ID);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-            if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, identifier.getId()));
-        }
+        if (identifier == null) return fieldSetModelMap;
 
-        fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_IDENTIFIER_SCHEMA_URI);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-            if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, identifier.getSchemaUri() != null ? identifier.getSchemaUri().value(): null));
-        }
+        List<FieldSetModel> fieldSetsWithSemantics = this.blueprintFieldSearcherService.searchFieldSetsBySemantics(planBlueprintModel, List.of(SEMANTIC_IDENTIFIER_ID, SEMANTIC_IDENTIFIER_SCHEMA_URI, SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_ID, SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_SCHEMA_URI,
+                SEMANTIC_IDENTIFIER_OWNER_ID, SEMANTIC_IDENTIFIER_OWNER_SCHEMA_URI, SEMANTIC_IDENTIFIER_OWNER_SERVICE_POINT, SEMANTIC_IDENTIFIER_LICENSE, SEMANTIC_IDENTIFIER_VERSION));
+        if (!fieldSetsWithSemantics.isEmpty()){
 
-        if (identifier.getRegistrationAgency() != null) {
-            fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_ID);
-            for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-                if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, identifier.getRegistrationAgency().getId()));
-            }
-
-            fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_SCHEMA_URI);
-            for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-                if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, identifier.getRegistrationAgency().getSchemaUri() != null ? identifier.getRegistrationAgency().getSchemaUri().value(): null));
-            }
-        }
-
-        if (identifier.getOwner() != null) {
-            fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_IDENTIFIER_OWNER_ID);
-            for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-                if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, identifier.getOwner().getId()));
-            }
-
-            fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_IDENTIFIER_OWNER_SCHEMA_URI);
-            for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-                if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, identifier.getOwner().getSchemaUri() != null ? identifier.getOwner().getSchemaUri().value(): null));
-            }
-
-            fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_IDENTIFIER_OWNER_SERVICE_POINT);
-            for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-                if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, identifier.getOwner().getServicePoint()));
-            }
-        }
-
-        fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_IDENTIFIER_LICENSE);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-            if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, identifier.getLicense() != null ? identifier.getLicense().value(): null));
-        }
-
-        fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_IDENTIFIER_VERSION);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-            if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, identifier.getVersion()));
-        }
-
-
-        return planBlueprintValueModels;
-    }
-
-    private List<PlanBlueprintValueModel> buildPlanBlueprintValuesByRaidDate(PlanBlueprintModel planBlueprintModel, Date date) {
-        List<PlanBlueprintValueModel> planBlueprintValueModels = new ArrayList<>();
-
-        if (planBlueprintModel == null || date == null) return planBlueprintValueModels;
-
-        List<org.opencdmp.commonmodels.models.planblueprint.FieldModel> fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_DATE_START_DATE);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-            if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, date.getStartDate()));
-        }
-
-        fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_DATE_END_DATE);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-            if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, date.getEndDate()));
-        }
-
-        return planBlueprintValueModels;
-    }
-
-    private List<PlanBlueprintValueModel> buildPlanBlueprintValuesByRaidAccess(PlanBlueprintModel planBlueprintModel, Access access) {
-        List<PlanBlueprintValueModel> planBlueprintValueModels = new ArrayList<>();
-
-        if (planBlueprintModel == null || access == null) return planBlueprintValueModels;
-
-        List<org.opencdmp.commonmodels.models.planblueprint.FieldModel> fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_ACCESS_EMBARGO_EXPIRY);
-        for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-            if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, access.getEmbargoExpiry()));
-        }
-
-        if (access.getType() != null) {
-            fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_ACCESS_TYPE_ID);
-            for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-                if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, access.getType().getId() != null ? access.getType().getId().value(): null));
-            }
-
-            fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_ACCESS_TYPE_SCHEMA_URI);
-            for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-                if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, access.getType().getSchemaUri() != null ? access.getType().getSchemaUri().value(): null));
-            }
-        }
-
-        if (access.getStatement() != null) {
-            fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_ACCESS_STATEMENT_TEXT);
-            for(org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-                if (field != null) planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, access.getStatement().getText()));
-            }
-
-            if (access.getStatement().getLanguage() != null) {
-                fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_ID);
-                for (org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-                    if (field != null)
-                        planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, access.getStatement().getLanguage().getId() != null ? access.getStatement().getLanguage().getId().value(): null));
+            for (FieldSetModel templateFieldSetModel: fieldSetsWithSemantics) {
+                PropertyDefinitionFieldSetModel propertyDefinitionFieldSetModel = fieldSetModelMap.getOrDefault(templateFieldSetModel.getId(), null);
+                if(propertyDefinitionFieldSetModel == null) {
+                    propertyDefinitionFieldSetModel = new PropertyDefinitionFieldSetModel();
+                    propertyDefinitionFieldSetModel.setItems(new ArrayList<>());
+                    fieldSetModelMap.put(templateFieldSetModel.getId(), propertyDefinitionFieldSetModel);
                 }
 
-                fields = this.getFieldsOfSemantic(planBlueprintModel, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_SCHEMA_URI);
-                for (org.opencdmp.commonmodels.models.planblueprint.FieldModel field : fields) {
-                    if (field != null)
-                        planBlueprintValueModels.add(this.buildPlanBlueprintValueModel(field, access.getStatement().getLanguage().getSchemaUri() != null ? access.getStatement().getLanguage().getSchemaUri().value(): null));
-                }
-            }
-        }
-
-
-        return planBlueprintValueModels;
-    }
-
-    private PlanBlueprintValueModel buildPlanBlueprintValueModel(org.opencdmp.commonmodels.models.planblueprint.FieldModel field, String value ){
-        PlanBlueprintValueModel valueModel = new PlanBlueprintValueModel();
-
-        if (field == null) return null;
-
-        valueModel.setFieldId(field.getId());
-        if (field.getCategory().equals(PlanBlueprintFieldCategory.Extra)) {
-            ExtraFieldModel extraFieldModel = (ExtraFieldModel) field;
-            if (value != null && !value.isBlank()) {
-                switch (extraFieldModel.getDataType()) {
-                    case Text, RichTex -> {
-                        valueModel.setValue(value);
-                    }
-                    case Date -> {
-                        try {
-                            LocalDate localDate = LocalDate.parse(value);
-                            valueModel.setDateValue(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
-                        } catch (Exception e) {
-                            logger.warn("invalid instant parse for value: " + value);
+                PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel = new PropertyDefinitionFieldSetItemModel();
+                Map<String, org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel> fieldsMap = new HashMap<>();
+                for (FieldModel templateFieldModel: templateFieldSetModel.getFields()) {
+                    if (templateFieldModel.getSemantics() != null && !templateFieldModel.getSemantics().isEmpty()) {
+                        boolean valueFound = false;
+                        org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel fieldModel = new org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel();
+                        fieldModel.setId(templateFieldModel.getId());
+                        if (identifier.getId() != null && templateFieldModel.getSemantics().contains(SEMANTIC_IDENTIFIER_ID)){
+                            fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, identifier.getId(), null, null, null);
+                            valueFound = true;
                         }
-                    }
-                    case Number -> {
-                        try {
-                            valueModel.setNumberValue(Double.parseDouble(value));;
-                        } catch (Exception e) {
-                            logger.warn("invalid double parse for value: " + value);
+                        if (identifier.getSchemaUri() != null && templateFieldModel.getSemantics().contains(SEMANTIC_IDENTIFIER_SCHEMA_URI)){
+                            fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, identifier.getSchemaUri().value(), null, null, null);
+                            valueFound = true;
                         }
-                    }
 
+                        if (identifier.getRegistrationAgency() != null) {
+                            if (identifier.getRegistrationAgency().getId() != null && templateFieldModel.getSemantics().contains(SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_ID)){
+                                fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, identifier.getRegistrationAgency().getId(), null, null, null);
+                                valueFound = true;
+                            }
+                            if (identifier.getRegistrationAgency().getSchemaUri() != null && templateFieldModel.getSemantics().contains(SEMANTIC_IDENTIFIER_REGISTRATION_AGENCY_SCHEMA_URI)){
+                                fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, identifier.getRegistrationAgency().getSchemaUri().value(), null, null, null);
+                                valueFound = true;
+                            }
+                        }
+
+                        if (identifier.getOwner() != null) {
+                            if (identifier.getOwner().getId() != null && templateFieldModel.getSemantics().contains(SEMANTIC_IDENTIFIER_OWNER_ID)){
+                                fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, identifier.getOwner().getId(), null, null, null);
+                                valueFound = true;
+                            }
+                            if (identifier.getOwner().getSchemaUri() != null && templateFieldModel.getSemantics().contains(SEMANTIC_IDENTIFIER_OWNER_SCHEMA_URI)){
+                                fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, identifier.getOwner().getSchemaUri().value(), null, null, null);
+                                valueFound = true;
+                            }
+                            if (identifier.getOwner().getServicePoint() != null && templateFieldModel.getSemantics().contains(SEMANTIC_IDENTIFIER_OWNER_SERVICE_POINT)){
+                                fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, String.valueOf(identifier.getOwner().getServicePoint()), null, null, null);
+                                valueFound = true;
+                            }
+                        }
+
+                        if (identifier.getLicense() != null && templateFieldModel.getSemantics().contains(SEMANTIC_IDENTIFIER_LICENSE)){
+                            fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, identifier.getLicense().value(), null, null, null);
+                            valueFound = true;
+                        }
+                        if (identifier.getVersion() != null && templateFieldModel.getSemantics().contains(SEMANTIC_IDENTIFIER_VERSION)){
+                            fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, identifier.getVersion(), null, null, null);
+                            valueFound = true;
+                        }
+
+                        if (valueFound) fieldsMap.put(templateFieldModel.getId(), fieldModel);
+                    }
                 }
+                if (propertyDefinitionFieldSetModel.getItems() == null){
+                    propertyDefinitionFieldSetModel.setItems(new ArrayList<>());
+                }
+                propertyDefinitionFieldSetItemModel.setFields(fieldsMap);
+                propertyDefinitionFieldSetItemModel.setOrdinal(propertyDefinitionFieldSetModel.getItems().size());
+                propertyDefinitionFieldSetModel.getItems().add(propertyDefinitionFieldSetItemModel);
+
+                fieldSetModelMap.put(templateFieldSetModel.getId(), propertyDefinitionFieldSetModel);
             }
+
+
         }
-        return valueModel;
+
+        return fieldSetModelMap;
     }
+
+    private Map<String, PropertyDefinitionFieldSetModel> buildPlanBlueprintValuesByRaidDate(PlanBlueprintModel planBlueprintModel, Date date) {
+        Map<String, PropertyDefinitionFieldSetModel> fieldSetModelMap = new HashMap<>();
+
+        if (planBlueprintModel == null) throw new MyApplicationException("planBlueprintModel is missing");
+
+        if (date == null) return fieldSetModelMap;
+
+        List<FieldSetModel> fieldSetsWithSemantics = this.blueprintFieldSearcherService.searchFieldSetsBySemantics(planBlueprintModel, List.of(SEMANTIC_DATE_START_DATE, SEMANTIC_DATE_END_DATE));
+        if (!fieldSetsWithSemantics.isEmpty()){
+
+            for (FieldSetModel templateFieldSetModel: fieldSetsWithSemantics) {
+                PropertyDefinitionFieldSetModel propertyDefinitionFieldSetModel = fieldSetModelMap.getOrDefault(templateFieldSetModel.getId(), null);
+                if(propertyDefinitionFieldSetModel == null) {
+                    propertyDefinitionFieldSetModel = new PropertyDefinitionFieldSetModel();
+                    propertyDefinitionFieldSetModel.setItems(new ArrayList<>());
+                    fieldSetModelMap.put(templateFieldSetModel.getId(), propertyDefinitionFieldSetModel);
+                }
+
+                PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel = new PropertyDefinitionFieldSetItemModel();
+                Map<String, org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel> fieldsMap = new HashMap<>();
+                for (FieldModel templateFieldModel: templateFieldSetModel.getFields()) {
+                    if (templateFieldModel.getSemantics() != null && !templateFieldModel.getSemantics().isEmpty()) {
+                        boolean valueFound = false;
+                        org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel fieldModel = new org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel();
+                        fieldModel.setId(templateFieldModel.getId());
+                        if (date.getStartDate() != null && templateFieldModel.getSemantics().contains(SEMANTIC_DATE_START_DATE)){
+                            fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, date.getStartDate(), null, null, null);
+                            valueFound = true;
+                        }
+                        if (date.getEndDate() != null && templateFieldModel.getSemantics().contains(SEMANTIC_DATE_END_DATE)){
+                            fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, date.getEndDate(), null, null, null);
+                            valueFound = true;
+                        }
+
+                        if (valueFound) fieldsMap.put(templateFieldModel.getId(), fieldModel);
+                    }
+                }
+                if (propertyDefinitionFieldSetModel.getItems() == null){
+                    propertyDefinitionFieldSetModel.setItems(new ArrayList<>());
+                }
+                propertyDefinitionFieldSetItemModel.setFields(fieldsMap);
+                propertyDefinitionFieldSetItemModel.setOrdinal(propertyDefinitionFieldSetModel.getItems().size());
+                propertyDefinitionFieldSetModel.getItems().add(propertyDefinitionFieldSetItemModel);
+
+                fieldSetModelMap.put(templateFieldSetModel.getId(), propertyDefinitionFieldSetModel);
+            }
+
+
+        }
+
+        return fieldSetModelMap;
+    }
+
+    private Map<String, PropertyDefinitionFieldSetModel> buildPlanBlueprintValuesByRaidAccess(PlanBlueprintModel planBlueprintModel, Access access){
+        Map<String, PropertyDefinitionFieldSetModel> fieldSetModelMap = new HashMap<>();
+
+        if (planBlueprintModel == null) throw new MyApplicationException("planBlueprintModel is missing");
+
+        if (access == null) return fieldSetModelMap;
+
+        List<FieldSetModel> fieldSetsWithSemantics = this.blueprintFieldSearcherService.searchFieldSetsBySemantics(planBlueprintModel, List.of(SEMANTIC_ACCESS_EMBARGO_EXPIRY, SEMANTIC_ACCESS_TYPE_ID, SEMANTIC_ACCESS_TYPE_SCHEMA_URI, SEMANTIC_ACCESS_STATEMENT_TEXT,
+                SEMANTIC_ACCESS_STATEMENT_LANGUAGE_ID, SEMANTIC_ACCESS_STATEMENT_LANGUAGE_SCHEMA_URI));
+        if (!fieldSetsWithSemantics.isEmpty()){
+
+            for (FieldSetModel templateFieldSetModel: fieldSetsWithSemantics) {
+                PropertyDefinitionFieldSetModel propertyDefinitionFieldSetModel = fieldSetModelMap.getOrDefault(templateFieldSetModel.getId(), null);
+                if(propertyDefinitionFieldSetModel == null) {
+                    propertyDefinitionFieldSetModel = new PropertyDefinitionFieldSetModel();
+                    propertyDefinitionFieldSetModel.setItems(new ArrayList<>());
+                    fieldSetModelMap.put(templateFieldSetModel.getId(), propertyDefinitionFieldSetModel);
+                }
+
+                PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel = new PropertyDefinitionFieldSetItemModel();
+                Map<String, org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel> fieldsMap = new HashMap<>();
+                for (FieldModel templateFieldModel: templateFieldSetModel.getFields()) {
+                    if (templateFieldModel.getSemantics() != null && !templateFieldModel.getSemantics().isEmpty()) {
+                        boolean valueFound = false;
+                        org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel fieldModel = new org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel();
+                        fieldModel.setId(templateFieldModel.getId());
+                        if (access.getEmbargoExpiry() != null && templateFieldModel.getSemantics().contains(SEMANTIC_ACCESS_EMBARGO_EXPIRY)){
+                            fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, access.getEmbargoExpiry(), null, null, null);
+                            valueFound = true;
+                        }
+                        if (access.getType() != null) {
+                            if (access.getType().getId() != null && templateFieldModel.getSemantics().contains(SEMANTIC_ACCESS_TYPE_ID)){
+                                fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, access.getType().getId().value(), null, null, null);
+                                valueFound = true;
+                            }
+                            if (access.getType().getSchemaUri() != null && templateFieldModel.getSemantics().contains(SEMANTIC_ACCESS_TYPE_SCHEMA_URI)){
+                                fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, access.getType().getSchemaUri().value(), null, null, null);
+                                valueFound = true;
+                            }
+                        }
+                        if (access.getStatement() != null) {
+                            if (access.getStatement().getText() != null && templateFieldModel.getSemantics().contains(SEMANTIC_ACCESS_STATEMENT_TEXT)){
+                                fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, access.getStatement().getText(), null, null, null);
+                                valueFound = true;
+                            }
+                            if (access.getStatement().getLanguage() != null) {
+                                if (access.getStatement().getLanguage().getId() != null && templateFieldModel.getSemantics().contains(SEMANTIC_ACCESS_STATEMENT_LANGUAGE_ID)){
+                                    fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, access.getStatement().getLanguage().getId().value(), null, null, null);
+                                    valueFound = true;
+                                }
+                                if (access.getStatement().getLanguage().getSchemaUri() != null && templateFieldModel.getSemantics().contains(SEMANTIC_ACCESS_STATEMENT_LANGUAGE_SCHEMA_URI)){
+                                    fieldModel = this.buildFieldModel(fieldModel, templateFieldModel, access.getStatement().getLanguage().getSchemaUri().value(), null, null, null);
+                                    valueFound = true;
+                                }
+                            }
+                        }
+
+                        if (valueFound) fieldsMap.put(templateFieldModel.getId(), fieldModel);
+                    }
+                }
+                if (propertyDefinitionFieldSetModel.getItems() == null){
+                    propertyDefinitionFieldSetModel.setItems(new ArrayList<>());
+                }
+                propertyDefinitionFieldSetItemModel.setFields(fieldsMap);
+                propertyDefinitionFieldSetItemModel.setOrdinal(propertyDefinitionFieldSetModel.getItems().size());
+                propertyDefinitionFieldSetModel.getItems().add(propertyDefinitionFieldSetItemModel);
+
+                fieldSetModelMap.put(templateFieldSetModel.getId(), propertyDefinitionFieldSetModel);
+            }
+
+
+        }
+
+        return fieldSetModelMap;
+    }
+
 
     //endregion
+
+    private org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel buildFieldModel(org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel fieldModel, FieldModel templateFieldModel, String textValue, java.util.Date dateValue, Boolean booleanValue, List<String> textListValue){
+        return this.buildFieldModel(fieldModel, templateFieldModel, textValue, dateValue, booleanValue, textListValue, null);
+    }
+
+    private org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel buildFieldModel(org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel fieldModel, FieldModel templateFieldModel, String textValue, java.util.Date dateValue, Boolean booleanValue, List<String> textListValue, Double numberValue){
+        if (templateFieldModel == null || templateFieldModel.getData() == null) return fieldModel;
+
+        switch (templateFieldModel.getData().getFieldType()) {
+            case FREE_TEXT, TEXT_AREA, RICH_TEXT_AREA -> {
+                if (textValue != null && !textValue.isBlank()) fieldModel.setTextValue(textValue);
+                else if (booleanValue != null) fieldModel.setTextValue(booleanValue.toString());
+                else if (dateValue != null) fieldModel.setTextValue(dateValue.toString());
+                else if (textListValue != null && !textListValue.isEmpty()) fieldModel.setTextValue(textListValue.getFirst());
+                else if (numberValue != null) fieldModel.setTextValue(String.valueOf(numberValue));
+            }
+            case BOOLEAN_DECISION, CHECK_BOX -> {
+                if (booleanValue != null) fieldModel.setBooleanValue(booleanValue);
+                if (textValue != null && !textValue.isBlank()) {
+                    if (textValue.equalsIgnoreCase("true")) fieldModel.setBooleanValue(true);
+                    else if (textValue.equalsIgnoreCase("false")) fieldModel.setBooleanValue(false);
+                }
+            }
+            case NUMBER -> {
+                if (numberValue != null) fieldModel.setNumberValue(numberValue);
+                if (textValue != null && !textValue.isBlank()) {
+                    try {
+                        fieldModel.setNumberValue(Double.valueOf(textValue));
+                    } catch (Exception e) {
+                        logger.warn("invalid double parse from value: " + textValue);
+                    }
+                }
+                if (textListValue != null && !textListValue.isEmpty()) {
+                    try {
+                        fieldModel.setNumberValue(Double.valueOf(textListValue.getFirst()));
+                    } catch (Exception e) {
+                        logger.warn("invalid double parse from value: " + textListValue.getFirst());
+                    }
+                }
+            }
+            case DATE_PICKER -> {
+                if (dateValue != null) fieldModel.setDateValue(dateValue.toInstant());
+                else if (textValue != null && !textValue.isBlank()) {
+                    try {
+                        fieldModel.setDateValue(Instant.parse(textValue));
+                    } catch (Exception e) {
+                        try {
+                            fieldModel.setDateValue(LocalDate.parse(textValue, DateTimeFormatter.ofPattern("yyyy-MM-dd")).atStartOfDay().atZone(ZoneOffset.UTC).toInstant());
+                        } catch (Exception ex) {
+                            logger.warn("invalid instant parse from value: " + textValue);
+                        }
+                    }
+
+                }
+            }
+            case DATASET_IDENTIFIER, VALIDATION -> {
+                if (textValue != null && !textValue.isBlank()) {
+                    ExternalIdentifierModel externalIdentifierModel = new ExternalIdentifierModel();
+                    externalIdentifierModel.setIdentifier(textValue);
+                    if (templateFieldModel.getData().getFieldType() == FieldType.DATASET_IDENTIFIER) externalIdentifierModel.setType("other");
+                    fieldModel.setExternalIdentifier(externalIdentifierModel);
+                }
+            }
+            case TAGS -> {
+                if (textListValue != null && !textListValue.isEmpty()) {
+                    fieldModel.setTextListValue(textListValue);
+                } else if (textValue != null && !textValue.isBlank()) {
+                    fieldModel.setTextListValue(List.of(textValue));
+                }
+            }
+            case SELECT -> {
+                SelectDataModel selectDataModel = (SelectDataModel) templateFieldModel.getData();
+                if (selectDataModel != null && selectDataModel.getOptions() != null && !selectDataModel.getOptions().isEmpty()){
+                    if (textListValue != null && !textListValue.isEmpty()) {
+                        fieldModel.setTextListValue(textListValue);
+                    } else if (textValue != null && !textValue.isBlank()) {
+                        fieldModel.setTextListValue(List.of(textValue));
+                    }
+                }
+
+            }
+            case RADIO_BOX -> {
+                if (textValue != null && !textValue.isBlank()) {
+                    RadioBoxDataModel radioBoxModel = (RadioBoxDataModel)templateFieldModel.getData();
+                    if (radioBoxModel != null && radioBoxModel.getOptions() != null && !radioBoxModel.getOptions().isEmpty()){
+                        for (RadioBoxDataModel.RadioBoxOptionModel option : radioBoxModel.getOptions()){
+                            if (option.getValue() != null && option.getValue().equalsIgnoreCase(textValue)) {
+                                fieldModel.setTextValue(option.getValue());
+                                break;
+                            } else if (option.getLabel() != null && option.getLabel().equalsIgnoreCase(textValue)) {
+                                fieldModel.setTextValue(option.getValue());
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            case REFERENCE_TYPES -> {
+                if (textValue != null && !textValue.isBlank()) {
+                    ReferenceModel referenceModel = new ReferenceModel();
+                    ReferenceTypeDataModel referenceTypeDataModel = (ReferenceTypeDataModel) templateFieldModel.getData();
+                    if (referenceTypeDataModel != null) referenceModel.setType(referenceTypeDataModel.getReferenceType());
+                    referenceModel.setReference(textValue);
+                    referenceModel.setLabel(textValue);
+
+                    fieldModel.setReferences(List.of(referenceModel));
+                }
+            }
+        }
+
+
+        return fieldModel;
+    }
 
     //region import description
 
@@ -1458,6 +1653,7 @@ public class RaidFileTransformerService implements FileTransformerClient {
         configuration.setUseSharedStorage(this.configuration.getRaidFileTransformerServiceProperties().isUseSharedStorage());
         configuration.setConfigurationFields(this.configuration.getRaidFileTransformerServiceProperties().getConfigurationFields());
         configuration.setUserConfigurationFields(this.configuration.getRaidFileTransformerServiceProperties().getUserConfigurationFields());
+        configuration.setSemantics(RaidSemanticsManifest.get());
         return configuration;
     }
 

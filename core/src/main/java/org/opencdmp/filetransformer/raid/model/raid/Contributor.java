@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.opencdmp.filetransformer.raid.enums.*;
 
 import java.io.Serializable;
+import java.util.List;
 
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -18,8 +19,8 @@ public class Contributor implements Serializable {
     @JsonProperty("schemaUri")
     private ContributorSchemaUri schemaUri;
 
-    @JsonProperty("language")
-    private Position position;
+    @JsonProperty("position")
+    private List<Position> position;
 
     @JsonProperty("leader")
     private ContributorLeader leader;
@@ -28,9 +29,10 @@ public class Contributor implements Serializable {
     private ContributorLeader contact;
 
     @JsonProperty("role")
-    private Role role;
+    private List<Role> role;
 
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Position {
         private ContributorPositionId id;
 
@@ -73,6 +75,7 @@ public class Contributor implements Serializable {
         }
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Role {
         private ContributorRoleId id;
 
@@ -111,11 +114,11 @@ public class Contributor implements Serializable {
         this.schemaUri = schemaUri;
     }
 
-    public Position getPosition() {
+    public List<Position> getPosition() {
         return position;
     }
 
-    public void setPosition(Position position) {
+    public void setPosition(List<Position> position) {
         this.position = position;
     }
 
@@ -135,11 +138,11 @@ public class Contributor implements Serializable {
         this.contact = contact;
     }
 
-    public Role getRole() {
+    public List<Role> getRole() {
         return role;
     }
 
-    public void setRole(Role role) {
+    public void setRole(List<Role> role) {
         this.role = role;
     }
 }

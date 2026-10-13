@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.opencdmp.filetransformer.raid.enums.*;
 
 import java.io.Serializable;
+import java.util.List;
 
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -19,9 +20,10 @@ public class Organisation implements Serializable {
     private OrganisationSchemaUri schemaUri;
 
     @JsonProperty("role")
-    private Role role;
+    private List<Role> role;
 
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Role {
         private OrganisationRoleId id;
 
@@ -80,11 +82,11 @@ public class Organisation implements Serializable {
         this.schemaUri = schemaUri;
     }
 
-    public Role getRole() {
+    public List<Role> getRole() {
         return role;
     }
 
-    public void setRole(Role role) {
+    public void setRole(List<Role> role) {
         this.role = role;
     }
 }

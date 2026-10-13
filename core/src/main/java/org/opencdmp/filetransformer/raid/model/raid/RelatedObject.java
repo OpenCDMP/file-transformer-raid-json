@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.opencdmp.filetransformer.raid.enums.*;
 
 import java.io.Serializable;
+import java.util.List;
 
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -22,9 +23,10 @@ public class RelatedObject implements Serializable {
     private Type type;
 
     @JsonProperty("category")
-    private Category category;
+    private List<Category> category;
 
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Type {
         private RelatedObjectTypeId id;
 
@@ -47,6 +49,7 @@ public class RelatedObject implements Serializable {
         }
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Category {
         private RelatedObjectCategoryId id;
 
@@ -93,11 +96,11 @@ public class RelatedObject implements Serializable {
         this.type = type;
     }
 
-    public Category getCategory() {
+    public List<Category> getCategory() {
         return category;
     }
 
-    public void setCategory(Category category) {
+    public void setCategory(List<Category> category) {
         this.category = category;
     }
 }

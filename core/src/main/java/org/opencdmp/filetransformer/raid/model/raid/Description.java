@@ -25,6 +25,7 @@ public class Description implements Serializable {
     private Language language;
 
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Type {
         private DescriptionTypeId id;
 

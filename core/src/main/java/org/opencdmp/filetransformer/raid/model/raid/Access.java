@@ -22,6 +22,7 @@ public class Access implements Serializable {
     private Statement statement;
 
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Type {
         private AccessTypeId id;
 
@@ -44,6 +45,7 @@ public class Access implements Serializable {
         }
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Statement {
         private String text;
 

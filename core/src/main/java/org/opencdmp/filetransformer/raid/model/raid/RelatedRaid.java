@@ -19,6 +19,7 @@ public class RelatedRaid implements Serializable {
     private Type type;
 
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Type {
         private RelatedRaidTypeId id;
 

@@ -30,6 +30,7 @@ public class Identifier implements Serializable {
     @JsonProperty("version")
     private String version;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class RegistrationAgency {
         private String id;
 
@@ -52,12 +53,13 @@ public class Identifier implements Serializable {
         }
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Owner {
         private String id;
 
         private IdentifierRegistrationAgencySchemaUri schemaUri;
 
-        private String servicePoint;
+        private Long servicePoint;
 
         public String getId() {
             return id;
@@ -75,11 +77,11 @@ public class Identifier implements Serializable {
             this.schemaUri = schemaUri;
         }
 
-        public String getServicePoint() {
+        public Long getServicePoint() {
             return servicePoint;
         }
 
-        public void setServicePoint(String servicePoint) {
+        public void setServicePoint(Long servicePoint) {
             this.servicePoint = servicePoint;
         }
     }

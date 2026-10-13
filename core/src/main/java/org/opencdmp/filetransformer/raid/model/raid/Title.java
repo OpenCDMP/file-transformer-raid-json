@@ -32,6 +32,7 @@ public class Title implements Serializable {
 
 
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Type {
         private TitleTypeId id;
 
