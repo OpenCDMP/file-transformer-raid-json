@@ -10,7 +10,8 @@
 ## Features
 
 - Values are read from the plan blueprint and asset template questions that carry `raid.*` semantic keys. Values outside the RAiD vocabularies are dropped, and blocks without a valid value are left out. See the [RAiD JSON semantics reference](https://opencdmp.github.io/optional-services/file-transformers/raid-json-semantics/).
-- Import creates a plan with the file's title and access, and fills the plan blueprint questions that carry the `identifier`, `date` and `access` keys.
+- Reference inputs can take their keys from their reference type (the type's Reference ID, Name, Description, and field semantics), and each picked reference makes its own entry in the RAiD lists.
+- Import creates a plan with the file's title and access, and fills the plan blueprint questions that carry the `identifier`, `date` and `access` keys, including reference inputs that take those keys through their reference type.
 - The service reports the keys it reads in a semantics manifest, so the plan blueprint and asset template editors of OpenCDMP can suggest them and check a structure.
 
 ## Requirements

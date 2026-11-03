@@ -163,6 +163,8 @@ public final class RaidSemanticsManifest {
         usage.setFormat(format);
         usage.setMultiple(false);
         usage.setObject(object);
+        // every key is read through the reference type of a reference input too
+        usage.setFromReferenceFields(true);
         return usage;
     }
 

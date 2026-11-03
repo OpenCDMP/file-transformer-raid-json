@@ -4,6 +4,7 @@ import org.opencdmp.commonmodels.models.descriptiotemplate.*;
 import org.opencdmp.commonmodels.models.planblueprintdescriptiontemplatefields.FieldModel;
 import org.opencdmp.commonmodels.models.planblueprintdescriptiontemplatefields.FieldSetModel;
 import org.opencdmp.commonmodels.models.planblueprintdescriptiontemplatefields.SectionModel;
+import org.opencdmp.filetransformer.raid.service.raidfiletransformer.ReferenceSemantics;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -16,14 +17,16 @@ public class TemplateFieldSearcherServiceImpl implements TemplateFieldSearcherSe
         if (fieldSetModel == null || fieldSetModel.getFields() == null) return null;
         List<FieldModel> fieldModels = fieldSetModel.getAllField();
         if (fieldModels == null) return null;
-        return fieldModels.stream().filter(x-> x.getSemantics() != null && x.getSemantics().contains(semantic)).findFirst().orElse(null);
+        FieldModel own = fieldModels.stream().filter(x-> x.getSemantics() != null && x.getSemantics().contains(semantic)).findFirst().orElse(null);
+        // else a reference input whose type gives the picked references the key
+        return own != null ? own : fieldModels.stream().filter(x -> ReferenceSemantics.carries(x, semantic)).findFirst().orElse(null);
     }
     @Override
     public List<FieldSetModel> searchFieldSetsBySemantics(DescriptionTemplateModel template, List<String> Semantics){
         if (template == null || template.getDefinition() == null) return new ArrayList<>();
         List<FieldModel> fieldModels = template.getDefinition().getAllField();
         if (fieldModels == null) return new ArrayList<>();
-        fieldModels = fieldModels.stream().filter(x-> x.getSemantics() != null && x.getSemantics().stream().anyMatch(Semantics::contains)).toList();
+        fieldModels = fieldModels.stream().filter(x-> (x.getSemantics() != null && x.getSemantics().stream().anyMatch(Semantics::contains)) || Semantics.stream().anyMatch(y -> ReferenceSemantics.carries(x, y))).toList();
         List<FieldSetModel> response = new ArrayList<>();
         HashSet<String> fieldSetIds = new HashSet<>();
         for (FieldModel fieldModel : fieldModels){

@@ -17,6 +17,7 @@ import org.opencdmp.commonmodels.models.plandescriptionfields.ExternalIdentifier
 import org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel;
 import org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetModel;
 import org.opencdmp.commonmodels.models.reference.ReferenceModel;
+import org.opencdmp.commonmodels.models.referencetype.ReferenceTypeModel;
 import org.opencdmp.filetransformer.raid.enums.*;
 import org.opencdmp.filetransformer.raid.model.raid.*;
 import org.opencdmp.filetransformer.raid.model.raid.Date;
@@ -34,6 +35,7 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -1133,8 +1135,73 @@ public class RaidFileTransformerService implements FileTransformerClient {
         List<org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel> items = new ArrayList<>();
         if (fieldSetModel == null || fieldSets == null) return items;
         PropertyDefinitionFieldSetModel propertyDefinitionFieldSetModel =  fieldSets.getOrDefault(fieldSetModel.getId(), null);
-        if (propertyDefinitionFieldSetModel != null && propertyDefinitionFieldSetModel.getItems() != null) return propertyDefinitionFieldSetModel.getItems();
+        if (propertyDefinitionFieldSetModel != null && propertyDefinitionFieldSetModel.getItems() != null) {
+            for (PropertyDefinitionFieldSetItemModel item : propertyDefinitionFieldSetModel.getItems()) items.addAll(this.rowsPerPick(fieldSetModel, item));
+        }
         return items;
+    }
+
+    /**
+     * The answer as the rows the export reads, one per object its picked references make. Reference inputs giving
+     * the same keys are alternatives, so each of their picks is an object of its own (every organisation picked);
+     * inputs giving other keys complete it, one pick of each. An answer picking at most one reference per input is
+     * one row, as before.
+     */
+    private List<PropertyDefinitionFieldSetItemModel> rowsPerPick(FieldSetModel fieldSet, PropertyDefinitionFieldSetItemModel item) {
+        if (item == null) return List.of();
+        if (fieldSet.getFields() == null || item.getFields() == null) return List.of(item);
+        List<Set<String>> keys = new ArrayList<>();
+        List<List<Map.Entry<String, ReferenceModel>>> alternatives = new ArrayList<>();
+        boolean several = false;
+        for (FieldModel field : fieldSet.getFields()) {
+            if (!(field.getData() instanceof ReferenceTypeDataModel data)) continue;
+            org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel stored = item.getFields().get(field.getId());
+            if (stored == null || stored.getReferences() == null) continue;
+            List<Map.Entry<String, ReferenceModel>> picks = stored.getReferences().stream().filter(Objects::nonNull).map(x -> Map.entry(field.getId(), x)).toList();
+            if (picks.isEmpty()) continue;
+            several |= picks.size() > 1;
+            Set<String> fieldKeys = new HashSet<>(ReferenceSemantics.keys(data.getReferenceType()));
+            if (field.getSemantics() != null) fieldKeys.addAll(field.getSemantics());
+            fieldKeys.removeIf(x -> x == null || !x.startsWith(RaidSemanticsManifest.PREFIX + "."));
+            List<Map.Entry<String, ReferenceModel>> merged = new ArrayList<>(picks);
+            for (int i = keys.size() - 1; i >= 0; i--) {
+                if (Collections.disjoint(keys.get(i), fieldKeys)) continue;
+                fieldKeys.addAll(keys.remove(i));
+                merged.addAll(0, alternatives.remove(i));
+            }
+            keys.add(fieldKeys);
+            alternatives.add(merged);
+        }
+        if (!several) return List.of(item);
+
+        List<Map<String, ReferenceModel>> combinations = new ArrayList<>(List.of(Map.of()));
+        for (List<Map.Entry<String, ReferenceModel>> alternative : alternatives) {
+            List<Map<String, ReferenceModel>> next = new ArrayList<>();
+            for (Map<String, ReferenceModel> combination : combinations) {
+                for (Map.Entry<String, ReferenceModel> pick : alternative) {
+                    Map<String, ReferenceModel> more = new LinkedHashMap<>(combination);
+                    more.put(pick.getKey(), pick.getValue());
+                    next.add(more);
+                }
+            }
+            combinations = next;
+        }
+        Set<String> picking = new HashSet<>();
+        alternatives.forEach(x -> x.forEach(y -> picking.add(y.getKey())));
+        List<PropertyDefinitionFieldSetItemModel> rows = new ArrayList<>();
+        for (Map<String, ReferenceModel> combination : combinations) {
+            PropertyDefinitionFieldSetItemModel row = new PropertyDefinitionFieldSetItemModel();
+            row.setOrdinal(item.getOrdinal());
+            row.setFields(new HashMap<>(item.getFields()));
+            for (String fieldId : picking) {
+                org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel only = new org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel();
+                only.setId(fieldId);
+                only.setReferences(combination.containsKey(fieldId) ? List.of(combination.get(fieldId)) : List.of());
+                row.getFields().put(fieldId, only);
+            }
+            rows.add(row);
+        }
+        return rows;
     }
 
     private String findValueFieldBySemantic(FieldSetModel fieldSet, org.opencdmp.commonmodels.models.plandescriptionfields.PropertyDefinitionFieldSetItemModel propertyDefinitionFieldSetItemModel, String semantic) {
@@ -1205,9 +1272,15 @@ public class RaidFileTransformerService implements FileTransformerClient {
                     }
                     case REFERENCE_TYPES -> {
                         if (valueField.getReferences() != null && !valueField.getReferences().isEmpty()) {
+                            boolean ownKey = field.getSemantics() != null && field.getSemantics().contains(semantic);
+                            ReferenceTypeModel type = ((ReferenceTypeDataModel) field.getData()).getReferenceType();
                             for (ReferenceModel referenceModel : valueField.getReferences()) {
                                 if (referenceModel == null) continue;
-                                if (referenceModel.getReference() != null && !referenceModel.getReference().isBlank()) {
+                                if (!ownKey) {
+                                    // the key comes through the reference type: the picked reference's id, name, description or field
+                                    String value = ReferenceSemantics.value(referenceModel, type, semantic);
+                                    if (value != null) values.add(value);
+                                } else if (referenceModel.getReference() != null && !referenceModel.getReference().isBlank()) {
                                     values.add(referenceModel.getReference());
                                 }
                             }
@@ -1271,6 +1344,7 @@ public class RaidFileTransformerService implements FileTransformerClient {
         if (raid.getIdentifier() != null) fieldSets.putAll(this.buildPlanBlueprintValuesByRaidIdentifier(planBlueprintModel, raid.getIdentifier()));
         if (raid.getDate() != null) fieldSets.putAll(buildPlanBlueprintValuesByRaidDate(planBlueprintModel, raid.getDate()));
         if (raid.getAccess() != null) fieldSets.putAll(buildPlanBlueprintValuesByRaidAccess(planBlueprintModel, raid.getAccess()));
+        this.importReferences(planBlueprintModel, raid, fieldSets);
 
         for (FieldSetModel fieldSetModel: planBlueprintModel.getDefinition().getAllFieldSets()){
             if (!fieldSets.containsKey(fieldSetModel.getId())){
@@ -1297,6 +1371,41 @@ public class RaidFileTransformerService implements FileTransformerClient {
         planPropertiesModel.setFieldSets(fieldSets);
 
         return planPropertiesModel;
+    }
+
+    /**
+     * Fills the reference inputs that take the imported keys only through their reference type with one reference
+     * made of the RAiD values: the code from the type's id key, the name, description and fields from its other
+     * keys. The OpenCDMP backend matches it by code or adds it as a new reference.
+     */
+    private void importReferences(PlanBlueprintModel planBlueprintModel, Raid raid, Map<String, PropertyDefinitionFieldSetModel> fieldSets) {
+        if (planBlueprintModel.getDefinition().getAllFieldSets() == null) return;
+        JsonNode raidNode = this.jsonHandlingService.fromJsonSafe(JsonNode.class, this.jsonHandlingService.toJsonSafe(raid));
+        if (raidNode == null) return;
+        for (FieldSetModel fieldSet : planBlueprintModel.getDefinition().getAllFieldSets()) {
+            if (fieldSet.getFields() == null) continue;
+            for (FieldModel field : fieldSet.getFields()) {
+                if (!(field.getData() instanceof ReferenceTypeDataModel data)) continue;
+                // an input with an imported key of its own was filled with it already
+                if (field.getSemantics() != null && field.getSemantics().stream().anyMatch(ReferenceSemantics::imported)) continue;
+                ReferenceModel reference = ReferenceSemantics.reference(data.getReferenceType(), raidNode);
+                if (reference == null) continue;
+
+                PropertyDefinitionFieldSetModel answered = fieldSets.computeIfAbsent(fieldSet.getId(), x -> new PropertyDefinitionFieldSetModel());
+                if (answered.getItems() == null) answered.setItems(new ArrayList<>());
+                if (answered.getItems().isEmpty()) {
+                    PropertyDefinitionFieldSetItemModel item = new PropertyDefinitionFieldSetItemModel();
+                    item.setOrdinal(0);
+                    answered.getItems().add(item);
+                }
+                PropertyDefinitionFieldSetItemModel item = answered.getItems().getFirst();
+                if (item.getFields() == null) item.setFields(new HashMap<>());
+                org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel fieldModel = new org.opencdmp.commonmodels.models.plandescriptionfields.FieldModel();
+                fieldModel.setId(field.getId());
+                fieldModel.setReferences(List.of(reference));
+                item.getFields().put(field.getId(), fieldModel);
+            }
+        }
     }
 
     private Map<String, PropertyDefinitionFieldSetModel> buildPlanBlueprintValuesByRaidIdentifier(PlanBlueprintModel planBlueprintModel, Identifier identifier){
